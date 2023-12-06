@@ -6,6 +6,7 @@
   "author": "cherrypopsicle <majd.khoury93@gmail.com>",
   "license": "MIT",
   "dependencies": {
+    "@openzeppelin/contracts": "^5.0.0",
     "hardhat": "^2.19.2"
   },
   "devDependencies": {
