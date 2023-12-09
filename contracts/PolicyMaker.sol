@@ -9,13 +9,15 @@ contract PolicyMaker is Ownable {
         uint256 premiumRate;
         uint256 duration;
         bool isActive;
+        address[] claimants;
     }
 
     mapping(uint256 => Policy) public policies;
     uint256 public nextPolicyId;
 
     function createPolicy(uint256 _coverageAmount, uint256 _premiumRate, uint256 _duration) public onlyOwner {
-        policies[nextPolicyId] = Policy(_coverageAmount, _premiumRate, _duration, true);
+        address[] memory claimants;
+        policies[nextPolicyId] = Policy(_coverageAmount, _premiumRate, _duration, true, claimants);
         nextPolicyId++;
     }
     
@@ -30,8 +32,24 @@ contract PolicyMaker is Ownable {
         policies[_policyId].premiumRate = _premiumRate;
         policies[_policyId].duration = _duration;
     }
+
+    function addClaimantToPolicy(uint256 _policyId, address _claimant) public {
+        // Ensure policy exists and the function caller has the authority to add a claimant
+        policies[_policyId].claimants.push(_claimant);
+    }
     
     function deactivatePolicy(uint256 _policyId) public onlyOwner {
         policies[_policyId].isActive = false;
     }
+
+    function isClaimant(uint256 _policyId, address _claimant) public view returns (bool) {
+        Policy memory policy = policies[_policyId];
+        for (uint i = 0; i < policy.claimants.length; i++) {
+            if (policy.claimants[i] == _claimant) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
 }
