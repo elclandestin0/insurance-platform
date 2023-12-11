@@ -9,7 +9,7 @@ contract PolicyMaker is Ownable {
         uint256 premiumRate;
         uint256 duration;
         bool isActive;
-        address[] claimants;
+        mapping(address => bool) claimants;
     }
 
     mapping(uint256 => Policy) public policies;
@@ -43,13 +43,7 @@ contract PolicyMaker is Ownable {
     }
 
     function isClaimant(uint256 _policyId, address _claimant) public view returns (bool) {
-        Policy memory policy = policies[_policyId];
-        for (uint i = 0; i < policy.claimants.length; i++) {
-            if (policy.claimants[i] == _claimant) {
-                return true;
-            }
-        }
-        return false;
+        return policies[_policyId].claimants(_claimant);
     }
     
 }
