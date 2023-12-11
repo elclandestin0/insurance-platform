@@ -15,8 +15,14 @@ contract PolicyMaker is Ownable {
     mapping(uint256 => mapping(address => bool)) public policyClaimants;
     uint256 public nextPolicyId = 1;
 
+    event PolicyCreated(uint256 policyId, uint256 coverageAmount, uint256 premiumRate, uint32 duration);
+    event PolicyUpdated(uint256 policyId, uint256 coverageAmount, uint256 premiumRate, uint32 duration);
+    event PolicyDeactivated(uint256 policyId);
+
+
     function createPolicy(uint256 _coverageAmount, uint256 _premiumRate, uint256 _duration) public onlyOwner {
         policies[nextPolicyId] = Policy(_coverageAmount, _premiumRate, _duration, true, claimants);
+        emit PolicyCreated(nextPolicyId, _coverageAmount, _premiumRate, _duration);
         nextPolicyId++;
     }
     
@@ -24,6 +30,7 @@ contract PolicyMaker is Ownable {
         policies[_policyId].coverageAmount = _coverageAmount;
         policies[_policyId].premiumRate = _premiumRate;
         policies[_policyId].duration = _duration;
+        emit PolicyUpdated(_policyId, _coverageAmount, _premiumRate, _duration);
     }
 
     function getPolicyDetails(uint256 _policyId)
@@ -36,7 +43,7 @@ contract PolicyMaker is Ownable {
         bool isActive
     )
     {
-        Policy memory policy = policies[_policyId];
+        Policy memory policy = policies[_policyId];;
         return (policy.coverageAmount, policy.premiumRate, policy.duration, policy.isActive);
     }
     
