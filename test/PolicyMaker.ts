@@ -2,7 +2,7 @@
 import { expect } from "chai";
 import { Contract } from "ethers";
 
-describe("PolicyMaker", function () {
+describe.only("PolicyMaker", function () {
     let policyMaker: Contract;
     let owner: any, addr1: any;
 
@@ -10,8 +10,8 @@ describe("PolicyMaker", function () {
     beforeEach(async function () {
         [owner, addr1] = await ethers.getSigners();
         const PolicyMaker = await ethers.getContractFactory("PolicyMaker");
-        policyMaker = await PolicyMaker.deploy();
-        await policyMaker.deployed();
+        policyMaker = await PolicyMaker.deploy(owner);
+        await policyMaker.waitForDeployment();
     });
 
     describe("Policy Creation", function () {
