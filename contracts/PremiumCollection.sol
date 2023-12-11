@@ -10,17 +10,15 @@ contract PremiumCollection {
         policyMaker = PolicyMaker(_policyMakerContractAddress);
     }
     
-    function payInitialPremium(uint256) public payable  {
+    function payInitialPremium(uint256 _policyId) public payable  {
         require(msg.value >= policyMaker.policies[_policyId].premiumRate, "Can't afford the rate!");
-        policyMaker.policies[_policyId].claimants[msg.sender] = true;
+        policyMaker.policyClaimants[_policyId][msg.sender] = true;
     }
 
     function payPremium(uint256 _policyId) public payable  {
         require(policyMaker.isClaimant(_policyId, msg.sender), "Not a claimant of this policy!");
-        require(msg.value >= policyMaker.policies[_policyId].premiumRate, "Can't afford the rate!");
+        (, uint256 premiumRate,,) = policyMaker.getPolicyDetails(_policyId);
+        require(msg.value >= premiumRate, "Can't afford the rate!");
         premiumsPaid[_policyId][msg.sender] += msg.value;
     }
-    
-
-    // Additional functions like checking premium status, refunding premiums, etc.
 }
