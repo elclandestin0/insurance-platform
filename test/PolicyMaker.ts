@@ -1,10 +1,13 @@
-﻿import { ethers } from "hardhat";
-import { expect } from "chai";
-import { Contract } from "ethers";
+﻿import {ethers} from "hardhat";
+import {expect} from "chai";
+import {Contract} from "ethers";
+import {HardhatEthersSigner} from "@nomicfoundation/hardhat-ethers/signers";
+import {PolicyMaker} from "../typechain-types";
+import { BigNumberish } from "ethers";
 
 describe.only("PolicyMaker", function () {
-    let policyMaker: Contract;
-    let owner: any, addr1: any;
+    let policyMaker: PolicyMaker;
+    let owner: HardhatEthersSigner, addr1: HardhatEthersSigner;
 
     // Deploying the PolicyMaker contract before each test
     beforeEach(async function () {
@@ -16,10 +19,15 @@ describe.only("PolicyMaker", function () {
 
     describe("Policy Creation", function () {
         it("Should allow the owner to create a new policy", async function () {
-            const tx = await policyMaker.createPolicy(1000, 100, 365);
+            const coverageAmount: any = ethers.parseUnits('1000', 0); // Assuming no decimals needed
+            const premiumRate: any = ethers.parseUnits('100', 0);
+            const duration: any = ethers.parseUnits('365', 0);
+            const policyId: any = ethers.parseUnits('1', 0);
+
+            const tx = await policyMaker.createPolicy(coverageAmount, premiumRate, duration);
             await tx.wait();
 
-            const policy = await policyMaker.policies(1);
+            const policy = await policyMaker.policies(policyId);
             expect(policy.coverageAmount).to.equal(1000);
             expect(policy.premiumRate).to.equal(100);
             expect(policy.duration).to.equal(365);
@@ -31,14 +39,21 @@ describe.only("PolicyMaker", function () {
 
     describe("Premium Payments", function () {
         it("Should allow payment of initial premium and set claimant status", async function () {
-            await policyMaker.createPolicy(1000, 100, 365);
+            const coverageAmount: any = ethers.parseUnits('1000', 0); // Assuming no decimals needed
+            const premiumRate: any = ethers.parseUnits('100', 0);
+            const duration: any = ethers.parseUnits('365', 0);
+            const amount: any = ethers.parseEther('100');
+            const policyId: any = ethers.parseUnits('1', 0);
+            const address: any = addr1.address
+            
+            await policyMaker.createPolicy(coverageAmount, premiumRate, duration);
 
-            await policyMaker.connect(addr1).payInitialPremium(1, { value: 100 });
+            await policyMaker.connect(addr1).payInitialPremium(policyId, {value: amount});
 
-            const isClaimant = await policyMaker.isClaimant(1, addr1.address);
+            const isClaimant = await policyMaker.isClaimant(policyId, address);
             expect(isClaimant).to.be.true;
 
-            const paidAmount = await policyMaker.premiumsPaid(1, addr1.address);
+            const paidAmount = await policyMaker.premiumsPaid(policyId, address);
             expect(paidAmount).to.equal(100);
         });
     });
