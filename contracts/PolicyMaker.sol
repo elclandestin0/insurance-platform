@@ -2,6 +2,7 @@
 pragma solidity ^0.8.9;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 contract PolicyMaker is Ownable {
     struct Policy {
@@ -58,7 +59,7 @@ contract PolicyMaker is Ownable {
     }
     
     // Payments section
-    function payInitialPremium(uint32 _policyId) public payable  {
+    function payInitialPremium(uint32 _policyId) public payable nonReentrant  {
         (, uint256 premiumRate,, bool isActive) = getPolicyDetails(_policyId);
         require(isActive, "Policy is not active");
         require(msg.value >= premiumRate, "Can't afford the rate!");
@@ -66,9 +67,8 @@ contract PolicyMaker is Ownable {
         policyClaimants[_policyId][msg.sender] = true;
     }
 
-    function payPremium(uint32 _policyId) public payable  {
-        (, uint256 premiumRate,, bool isActive) = getPolicyDetails(_policyId);
-        require(isActive, "Policy is not active");
+    function payPremium(uint32 _policyId) public payable nonReentrant {
+        require(policies[_policyId].isActive, "Policy does not exist or is not active");
         require(msg.value >= premiumRate, "Insufficient premium amount");
         require(policyMaker.isClaimant(_policyId, msg.sender), "Not a claimant of this policy");
 
