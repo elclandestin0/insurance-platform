@@ -4,7 +4,7 @@ pragma solidity ^0.8.9;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-contract PolicyMaker is Ownable {
+contract PolicyMaker is Ownable, ReentrancyGuard {
     struct Policy {
         uint32 coverageAmount;
         uint32 premiumRate;
@@ -76,5 +76,4 @@ contract PolicyMaker is Ownable {
         // Transfer the premium to the policy fund or handle accordingly
         emit PremiumPaid(_policyId, msg.sender, msg.value);
     }
-    
 }
