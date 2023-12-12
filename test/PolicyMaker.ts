@@ -2,7 +2,7 @@
 import {expect} from "chai";
 import {Contract} from "ethers";
 import {HardhatEthersSigner} from "@nomicfoundation/hardhat-ethers/signers";
-import {PolicyMaker} from "../typechain-types";
+import {PolicyMaker} from "../typechain";
 import { BigNumberish } from "ethers";
 
 describe.only("PolicyMaker", function () {
@@ -53,8 +53,9 @@ describe.only("PolicyMaker", function () {
             const isClaimant: boolean = await policyMaker.isClaimant(policyId, address);
             expect(isClaimant).to.be.true;
 
-            const paidAmount : bigint = await policyMaker.premiumsPaid(policyId, address);
-            expect(paidAmount).to.equal(100);
+            const paidAmount = await policyMaker.premiumsPaid(policyId, address);
+            console.log(paidAmount, " is the amount of premium paid")
+            expect(paidAmount).to.equal((ethers.parseEther('100')));
         });
     });
 });
