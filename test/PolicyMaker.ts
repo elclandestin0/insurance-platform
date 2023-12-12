@@ -50,10 +50,10 @@ describe.only("PolicyMaker", function () {
 
             await policyMaker.connect(addr1).payInitialPremium(policyId, {value: amount});
 
-            const isClaimant = await policyMaker.isClaimant(policyId, address);
+            const isClaimant: boolean = await policyMaker.isClaimant(policyId, address);
             expect(isClaimant).to.be.true;
 
-            const paidAmount = await policyMaker.premiumsPaid(policyId, address);
+            const paidAmount : bigint = await policyMaker.premiumsPaid(policyId, address);
             expect(paidAmount).to.equal(100);
         });
     });

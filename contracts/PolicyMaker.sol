@@ -36,20 +36,6 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         policies[_policyId].duration = _duration;
         emit PolicyUpdated(_policyId, _coverageAmount, _premiumRate, _duration);
     }
-
-    function getPolicyDetails(uint32 _policyId)
-    public
-    view
-    returns (
-        uint32 coverageAmount,
-        uint32 premiumRate,
-        uint32 duration,
-        bool isActive
-    )
-    {
-        Policy memory policy = policies[_policyId];
-        return (policy.coverageAmount, policy.premiumRate, policy.duration, policy.isActive);
-    }
     
     function deactivatePolicy(uint32 _policyId) public onlyOwner {
         policies[_policyId].isActive = false;
