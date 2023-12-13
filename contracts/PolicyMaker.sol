@@ -6,9 +6,9 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 contract PolicyMaker is Ownable, ReentrancyGuard {
     struct Policy {
-        uint32 coverageAmount;
-        uint32 initialPremiumFee;
-        uint32 premiumRate;
+        uint256 coverageAmount;
+        uint256 initialPremiumFee;
+        uint256 premiumRate;
         uint32 duration; // to-do change this variable to just calculate the unix timestamp.
         bool isActive;
         uint32 penaltyRate;
@@ -18,22 +18,23 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     mapping(uint32 => Policy) public policies;
     mapping(uint32 => mapping(address => bool)) public policyOwners;
     mapping(uint32 => mapping(address => uint256)) public premiumsPaid; // PolicyID -> Claimant -> Amount
+    mapping(uint32 => mapping(address => uint256)) public lastPremiumPaidTime;
     uint32 public nextPolicyId = 1;
 
     constructor(address initialOwner) Ownable (initialOwner) {}
 
-    event PolicyCreated(uint32 policyId, uint32 coverageAmount, uint32 initialPremiumFee, uint32 duration);
-    event PolicyUpdated(uint32 policyId, uint32 coverageAmount, uint32 initialPremiumFee, uint32 duration);
+    event PolicyCreated(uint32 policyId, uint256 coverageAmount, uint256 initialPremiumFee, uint32 duration);
+    event PolicyUpdated(uint32 policyId, uint256 coverageAmount, uint256 initialPremiumFee, uint32 duration);
     event PolicyDeactivated(uint32 policyId);
     event PremiumPaid(uint32 indexed policyId, address indexed claimant, uint256 amount, bool isPremium);
 
-    function createPolicy(uint32 _coverageAmount, uint32 _initialPremiumFee, uint32 _duration, uint32 _monthsGracePeriod, uint32 _penaltyRate) public onlyOwner {
-        policies[nextPolicyId] = Policy(_coverageAmount, _initialPremiumFee, _duration, true, _penaltyRate, _monthsGracePeriod);
+    function createPolicy(uint256 _coverageAmount, uint256 _initialPremiumFee, uint256 _premiumRate, uint32 _duration, uint32 _penaltyRate, uint32 _monthsGracePeriod) public onlyOwner {
+        policies[nextPolicyId] = Policy(_coverageAmount, _initialPremiumFee, _premiumRate, _duration, true, _penaltyRate, _monthsGracePeriod);
         emit PolicyCreated(nextPolicyId, _coverageAmount, _initialPremiumFee, _duration);
         nextPolicyId++;
     }
 
-    function updatePolicy(uint32 _policyId, uint32 _coverageAmount, uint32 _premiumRate, uint32 _duration, uint32 _monthsGracePeriod, uint32 _penaltyRate) public onlyOwner {
+    function updatePolicy(uint32 _policyId, uint256 _coverageAmount, uint256 _initialPremiumFee, uint32 _duration, uint32 _monthsGracePeriod, uint32 _penaltyRate) public onlyOwner {
         policies[_policyId].coverageAmount = _coverageAmount;
         policies[_policyId].initialPremiumFee = _initialPremiumFee;
         policies[_policyId].duration = _duration;
@@ -47,7 +48,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         emit PolicyDeactivated(_policyId);
     }
 
-    function isClaimant(uint32 _policyId, address _claimant) public view returns (bool) {
+    function isPolicyOwner(uint32 _policyId, address _claimant) public view returns (bool) {
         return policyOwners[_policyId][_claimant];
     }
 
@@ -58,13 +59,14 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         require(msg.value >= policies[_policyId].initialPremiumFee, "Can't afford the rate!");
         premiumsPaid[_policyId][msg.sender] += msg.value;
         policyOwners[_policyId][msg.sender] = true;
+        lastPremiumPaidTime[_policyId][msg.sender] = block.timestamp;
         emit PremiumPaid(_policyId, msg.sender, msg.value, true);
     }
 
     function payPremium(uint32 _policyId) public payable nonReentrant {
         require(policies[_policyId].isActive, "Policy does not exist or is not active");
-        require(msg.value >= policies[_policyId].premiumRate, "Insufficient premium amount");
-        require(isClaimant(_policyId, msg.sender), "Not a claimant of this policy");
+        require(msg.value >= calculatePremium(_policyId, msg.sender), "Insufficient premium amount");
+        require(isPolicyOwner(_policyId, msg.sender), "Not a claimant of this policy");
 
         premiumsPaid[_policyId][msg.sender] += msg.value;
         // Transfer the premium to the policy fund or handle accordingly
@@ -72,38 +74,22 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     }
 
     function calculatePremium(uint32 _policyId, address _policyHolder) public view returns (uint256) {
-        uint256 lastPaymentTime = lastPremiumPaidTime[_policyId][_policyHolder];
-        require(lastPaymentTime > 0, "No previous payment found");
+        require(isPolicyOwner(_policyId, msg.sender), "Not a policy owner!");
+        require(policies[_policyId].isActive, "Policy isn't active!");
+        require(lastPremiumPaidTime[_policyId][_policyHolder] > 0, "No previous payment found");
 
-        uint256 timeElapsed = block.timestamp - lastPaymentTime;
+        uint256 timeElapsed = block.timestamp - lastPremiumPaidTime[_policyId][_policyHolder];
         uint256 daysElapsed = timeElapsed / 60 / 60 / 24;
 
         uint256 dailyRate = policies[_policyId].premiumRate / 30; // Assuming premiumRate is monthly
         uint256 duePremium = daysElapsed * dailyRate;
-        uint256 premium = policy.premiumRate;
+        uint256 premium = policies[_policyId].premiumRate;
         premium += duePremium;
         // To-do: make a better calculation using timestamp in the future
         uint256 monthsElapsed = daysElapsed / 30 days;
 
-        if (monthsElapsed > policy.monthsGracePeriod) {
-            uint256 penaltyRate = 5; // 5% increase per month
-            uint256 penaltyMonths = monthsElapsed - 6;
-            premium += premium * penaltyRate * penaltyMonths / 100;
-        }
-        return premium;
-    }
-
-    function calculatePremium(uint32 _policyId, address _policyOwner) public view returns (uint256) {
-        require(policies[_policyId].isActive, "Policy is not active");
-
-        // Assuming the premium increases over time based on a formula
-        // Example: Premium increases by 5% every month after 6 months
-        uint256 timeElapsed = block.timestamp - policy.startTime; // startTime needs to be recorded when the policy is created
-        uint256 monthsElapsed = timeElapsed / 30 days;
-
-        uint256 premium = policy.premiumRate;
-        if (monthsElapsed > 6) {
-            uint256 penaltyRate = 5; // 5% increase per month
+        if (monthsElapsed > policies[_policyId].monthsGracePeriod) {
+            uint256 penaltyRate = policies[_policyId].penaltyRate; // 5% increase per month
             uint256 penaltyMonths = monthsElapsed - 6;
             premium += premium * penaltyRate * penaltyMonths / 100;
         }
