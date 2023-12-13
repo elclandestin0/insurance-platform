@@ -2,7 +2,7 @@
 import {expect} from "chai";
 import {Contract} from "ethers";
 import {HardhatEthersSigner} from "@nomicfoundation/hardhat-ethers/signers";
-import {PolicyMaker} from "../typechain";
+import {PolicyMaker} from "../typechain-types";
 import { BigNumberish } from "ethers";
 
 describe.only("PolicyMaker", function () {
@@ -40,9 +40,9 @@ describe.only("PolicyMaker", function () {
     describe("Premium Payments", function () {
         it("Should allow payment of initial premium and set claimant status", async function () {
             const coverageAmount: any = ethers.parseUnits('1000', 0); // Assuming no decimals needed
-            const premiumRate: any = ethers.parseUnits('100', 0);
+            const premiumRate: any = ethers.parseUnits('20', 0);
             const duration: any = ethers.parseUnits('365', 0);
-            const amount: any = ethers.parseEther('100');
+            const amount: any = ethers.parseEther('20');
             const policyId: any = ethers.parseUnits('1', 0);
             const address: any = addr1.address
             
@@ -55,7 +55,7 @@ describe.only("PolicyMaker", function () {
 
             const paidAmount = await policyMaker.premiumsPaid(policyId, address);
             console.log(paidAmount, " is the amount of premium paid")
-            expect(paidAmount).to.equal((ethers.parseEther('100')));
+            expect(paidAmount).to.equal((ethers.parseEther('20')));
         });
     });
 });
