@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "hardhat/console.sol";
 
 contract PolicyMaker is Ownable, ReentrancyGuard {
     struct Policy {
@@ -85,13 +86,18 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         uint256 duePremium = daysElapsed * dailyRate;
         uint256 premium = policies[_policyId].premiumRate;
         premium += duePremium;
-        // To-do: make a better calculation using timestamp in the future
-        uint256 monthsElapsed = daysElapsed / 30 days;
-
+        console.log("before months");
+        // To-do: make a better calculation using just timestamp in the future
+        uint256 monthsElapsed = daysElapsed / 30;
+        console.log(daysElapsed);
+        console.log(monthsElapsed);
+        console.log("regular premium ", premium);
         if (monthsElapsed > policies[_policyId].monthsGracePeriod) {
+            console.log("penalty");
             uint256 penaltyRate = policies[_policyId].penaltyRate; // 5% increase per month
-            uint256 penaltyMonths = monthsElapsed - 6;
+            uint256 penaltyMonths = monthsElapsed - policies[_policyId].monthsGracePeriod;
             premium += premium * penaltyRate * penaltyMonths / 100;
+            console.log("premium with penalty ", premium);
         }
         return premium;
     }
