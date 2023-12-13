@@ -86,19 +86,36 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         uint256 duePremium = daysElapsed * dailyRate;
         uint256 premium = policies[_policyId].premiumRate;
         premium += duePremium;
-        console.log("before months");
         // To-do: make a better calculation using just timestamp in the future
         uint256 monthsElapsed = daysElapsed / 30;
-        console.log(daysElapsed);
-        console.log(monthsElapsed);
-        console.log("regular premium ", premium);
         if (monthsElapsed > policies[_policyId].monthsGracePeriod) {
-            console.log("penalty");
             uint256 penaltyRate = policies[_policyId].penaltyRate; // 5% increase per month
             uint256 penaltyMonths = monthsElapsed - policies[_policyId].monthsGracePeriod;
             premium += premium * penaltyRate * penaltyMonths / 100;
-            console.log("premium with penalty ", premium);
         }
         return premium;
     }
+
+    function calculateTotalCoverage(uint32 _policyId, address _policyHolder) public view returns (uint256) {
+        Policy memory policy = policies[_policyId];
+        require(policy.isActive, "Policy is not active");
+
+        uint256 initialCoverage = policy.coverageAmount * policy.initialPremiumFee / 100; // Assuming 50% coverage for the initial premium
+        uint256 totalPremiumsPaid = premiumsPaid[_policyId][_policyHolder];
+
+        // Assuming each unit of premium adds a certain amount of coverage
+        uint256 coverageFactor = calculateCoverageFactor(); // For example, each 1 ETH of premium adds 2 ETH of coverage
+        uint256 additionalCoverage = (totalPremiumsPaid - policy.initialPremiumFee) * coverageFactor;
+
+        uint256 totalCoverage = initialCoverage + additionalCoverage;
+        return totalCoverage;
+    }
+
+    function calculateCoverageFactor() public pure returns (uint256) {
+        uint256 baseFactor = 2; // Base level of coverage per unit of premium
+        // to-do calculate duration adjustment
+        uint256 coverageFactor = baseFactor;
+        return coverageFactor;
+    }
+
 }

@@ -88,4 +88,28 @@ describe.only("PolicyMaker", function () {
             expect(premium).to.be.above(premiumRate);
         });
     });
+    describe("Coverage Calculation", function () {
+        it("Should calculate the correct total coverage", async function () {
+            const policyId = ethers.parseUnits('1', 0);
+            const coverageAmount = ethers.parseUnits('100', 0); 
+            const initialPremiumFee = ethers.parseEther('20');
+            const premiumRate = ethers.parseEther('1');
+            const duration = ethers.parseUnits('365', 0);
+            const penaltyRate = ethers.parseUnits('20', 0);
+            const monthsGracePeriod = ethers.parseUnits('6', 0);
+
+            // Create a policy
+            await policyMaker.createPolicy(coverageAmount, initialPremiumFee, premiumRate, duration, penaltyRate, monthsGracePeriod);
+            // Pay initial premium
+            await policyMaker.connect(addr1).payInitialPremium(policyId, { value: ethers.parseEther("20") });
+
+            // Calculate total coverage
+            const totalCoverage = await policyMaker.connect(addr1).calculateTotalCoverage(policyId, addr1.address);
+            expect(totalCoverage).to.be.above(0); // Adjust based on expected logic
+
+            // Calculate coverage factor
+            const coverageFactor = await policyMaker.connect(addr1).calculateCoverageFactor(policyId, addr1.address);
+            expect(coverageFactor).to.be.above(0); // Adjust based on expected logic
+        });
+    });
 });
