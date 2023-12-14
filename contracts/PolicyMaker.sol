@@ -8,6 +8,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     struct Policy {
         uint256 coverageAmount;
         uint256 initialPremiumFee;
+        uint256 initialCoveragePercentage;
         uint256 premiumRate;
         uint32 duration; // to-do change this variable to just calculate the unix timestamp.
         bool isActive;
@@ -28,8 +29,8 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     event PolicyDeactivated(uint32 policyId);
     event PremiumPaid(uint32 indexed policyId, address indexed claimant, uint256 amount, bool isPremium);
 
-    function createPolicy(uint256 _coverageAmount, uint256 _initialPremiumFee, uint256 _premiumRate, uint32 _duration, uint32 _penaltyRate, uint32 _monthsGracePeriod) public onlyOwner {
-        policies[nextPolicyId] = Policy(_coverageAmount, _initialPremiumFee, _premiumRate, _duration, true, _penaltyRate, _monthsGracePeriod);
+    function createPolicy(uint256 _coverageAmount, uint256 _initialPremiumFee, uint256 _initialCoveragePercentage, uint256 _premiumRate, uint32 _duration, uint32 _penaltyRate, uint32 _monthsGracePeriod) public onlyOwner {
+        policies[nextPolicyId] = Policy(_coverageAmount, _initialPremiumFee, _initialCoveragePercentage, _premiumRate, _duration, true, _penaltyRate, _monthsGracePeriod);
         emit PolicyCreated(nextPolicyId, _coverageAmount, _initialPremiumFee, _duration);
         nextPolicyId++;
     }
@@ -98,7 +99,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     function calculateTotalCoverage(uint32 _policyId, address _policyHolder) public view returns (uint256) {
         Policy memory policy = policies[_policyId];
         require(policy.isActive, "Policy is not active");
-        uint256 initialCoverage = policy.coverageAmount * policy.initialPremiumFee / 50;
+        uint256 initialCoverage = policy.coverageAmount * policy.initialPremiumFee / policy.initialCoveragePercentage;
         
         // Assuming each unit of premium adds a certain amount of coverage
         uint256 totalPremiumsPaid = premiumsPaid[_policyId][_policyHolder];
