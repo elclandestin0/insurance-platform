@@ -3,7 +3,6 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "hardhat/console.sol";
 
 contract PolicyMaker is Ownable, ReentrancyGuard {
     struct Policy {
@@ -99,14 +98,12 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     function calculateTotalCoverage(uint32 _policyId, address _policyHolder) public view returns (uint256) {
         Policy memory policy = policies[_policyId];
         require(policy.isActive, "Policy is not active");
-
         uint256 initialCoverage = policy.coverageAmount * policy.initialPremiumFee / 100; // Assuming 50% coverage for the initial premium
-        uint256 totalPremiumsPaid = premiumsPaid[_policyId][_policyHolder];
-
+        
         // Assuming each unit of premium adds a certain amount of coverage
+        uint256 totalPremiumsPaid = premiumsPaid[_policyId][_policyHolder];
         uint256 coverageFactor = calculateCoverageFactor(); // For example, each 1 ETH of premium adds 2 ETH of coverage
         uint256 additionalCoverage = (totalPremiumsPaid - policy.initialPremiumFee) * coverageFactor;
-
         uint256 totalCoverage = initialCoverage + additionalCoverage;
         return totalCoverage;
     }

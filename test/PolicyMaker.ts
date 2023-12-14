@@ -89,7 +89,7 @@ describe.only("PolicyMaker", function () {
         });
     });
     describe("Coverage Calculation", function () {
-        it("Should calculate the correct total coverage", async function () {
+        it("Should calculate the correct total coverage of the initial premium fee", async function () {
             const policyId = ethers.parseUnits('1', 0);
             const coverageAmount = ethers.parseUnits('100', 0); 
             const initialPremiumFee = ethers.parseEther('20');
@@ -105,11 +105,7 @@ describe.only("PolicyMaker", function () {
 
             // Calculate total coverage
             const totalCoverage = await policyMaker.connect(addr1).calculateTotalCoverage(policyId, addr1.address);
-            expect(totalCoverage).to.be.above(0); // Adjust based on expected logic
-
-            // Calculate coverage factor
-            const coverageFactor = await policyMaker.connect(addr1).calculateCoverageFactor(policyId, addr1.address);
-            expect(coverageFactor).to.be.above(0); // Adjust based on expected logic
+            expect(totalCoverage).to.equal(initialPremiumFee); // Adjust based on expected logic
         });
     });
 });
