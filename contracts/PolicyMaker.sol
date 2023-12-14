@@ -98,7 +98,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     function calculateTotalCoverage(uint32 _policyId, address _policyHolder) public view returns (uint256) {
         Policy memory policy = policies[_policyId];
         require(policy.isActive, "Policy is not active");
-        uint256 initialCoverage = policy.coverageAmount * policy.initialPremiumFee / 100; // Assuming 50% coverage for the initial premium
+        uint256 initialCoverage = policy.coverageAmount * policy.initialPremiumFee / 50;
         
         // Assuming each unit of premium adds a certain amount of coverage
         uint256 totalPremiumsPaid = premiumsPaid[_policyId][_policyHolder];
@@ -114,5 +114,4 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         uint256 coverageFactor = baseFactor;
         return coverageFactor;
     }
-
 }
