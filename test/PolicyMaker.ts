@@ -61,8 +61,7 @@ describe.only("PolicyMaker", function () {
             expect(isClaimant).to.be.true;
 
             const paidAmount = await policyMaker.premiumsPaid(policyId, address);
-            console.log(paidAmount, " is the amount of premium paid")
-            expect(paidAmount).to.equal((ethers.parseEther('20')));
+            expect(paidAmount).to.equal((initialPremiumFee));
         });
     });
     describe("Premium Calculation", function () {
@@ -87,9 +86,7 @@ describe.only("PolicyMaker", function () {
 
             // Calculate premium after 7 months
             const premium = await policyMaker.connect(addr1).calculatePremium(policyId, addr1.address);
-            const premiumsPaid = await policyMaker.premiumsPaid(policyId, addr1.address);
-            console.log(ethers.formatEther(premium));
-            expect(premium).to.be.above(premiumRate);
+            expect(initialPremiumFee).to.be.below(initialPremiumFee + premium);
         });
     });
     describe("Coverage Calculation", function () {

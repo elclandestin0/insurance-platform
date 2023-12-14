@@ -48,6 +48,10 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         policies[_policyId].isActive = false;
         emit PolicyDeactivated(_policyId);
     }
+    
+    function isActive(uint32 _policyId) public view returns (bool) {
+        return policies[_policyId].isActive;
+    }
 
     function isPolicyOwner(uint32 _policyId, address _claimant) public view returns (bool) {
         return policyOwners[_policyId][_claimant];

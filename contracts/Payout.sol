@@ -14,7 +14,7 @@ contract Payout {
 
     function processClaim(uint32 policyId, address policyHolder, uint256 claimAmount) public {
         require(policyMaker.isPolicyOwner(policyId, policyHolder), "Not a policy owner");
-        require(policyMaker.policies(policyId).isActive, "Policy is not active");
+        require(policyMaker.isActive(policyId), "Policy is not active");
 
         // Implement claim verification logic
         bool isClaimValid = verifyClaim(policyId, policyHolder, claimAmount);
