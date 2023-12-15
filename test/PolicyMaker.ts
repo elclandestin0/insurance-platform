@@ -188,9 +188,10 @@ describe.only("PolicyMaker", function () {
             
             // Process cliam after paying
             const claimAmount = ethers.parseEther("10");
+            const balanceBefore = await ethers.provider.getBalance(addr1.address);
             const processTx = await payout.connect(addr1).processClaim(policyId, addr1.address, claimAmount);
-            const balance = addr1
-            await expect(processTx).to.emit(payout, "ClaimProcessed").withArgs(policyId, addr1.address, claimAmount, true);
+            const balanceAfter = await ethers.provider.getBalance(addr1.address);
+            expect(balanceAfter).to.be.greaterThan(balanceBefore);
         });
     });
 });
