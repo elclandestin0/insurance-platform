@@ -15,7 +15,8 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         uint32 penaltyRate;
         uint32 monthsGracePeriod;
     }
-
+    
+    address private payoutContract;
     mapping(uint32 => Policy) public policies;
     mapping(uint32 => mapping(address => bool)) public policyOwners;
     mapping(uint32 => mapping(address => uint256)) public premiumsPaid; // PolicyID -> Claimant -> Amount
@@ -28,7 +29,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     event PolicyUpdated(uint32 policyId, uint256 coverageAmount, uint256 initialPremiumFee, uint32 duration);
     event PolicyDeactivated(uint32 policyId);
     event PremiumPaid(uint32 indexed policyId, address indexed claimant, uint256 amount, bool isPremium);
-
+    
     function createPolicy(uint256 _coverageAmount, uint256 _initialPremiumFee, uint256 _initialCoveragePercentage, uint256 _premiumRate, uint32 _duration, uint32 _penaltyRate, uint32 _monthsGracePeriod) public onlyOwner {
         policies[nextPolicyId] = Policy(_coverageAmount, _initialPremiumFee, _initialCoveragePercentage, _premiumRate, _duration, true, _penaltyRate, _monthsGracePeriod);
         emit PolicyCreated(nextPolicyId, _coverageAmount, _initialPremiumFee, _duration);
@@ -68,12 +69,13 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         emit PremiumPaid(_policyId, msg.sender, msg.value, true);
     }
 
-    function payPremium(uint32 _policyId) public payable nonReentrant {
+    function payPremium(uint32 _policyId) public payable {
         require(policies[_policyId].isActive, "Policy does not exist or is not active");
         require(msg.value >= calculatePremium(_policyId, msg.sender), "Insufficient premium amount");
         require(isPolicyOwner(_policyId, msg.sender), "Not a claimant of this policy");
 
         premiumsPaid[_policyId][msg.sender] += msg.value;
+        lastPremiumPaidTime[_policyId][msg.sender] = block.timestamp;
         // Transfer the premium to the policy fund or handle accordingly
         emit PremiumPaid(_policyId, msg.sender, msg.value, false);
     }
@@ -119,4 +121,17 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         uint256 coverageFactor = baseFactor;
         return coverageFactor;
     }
+
+    function handlePayout(uint32 policyId, address policyHolder, uint256 payoutAmount) external {
+        require(msg.sender == payoutContract, "Caller is not the Payout contract");
+        require(policies[policyId].isActive, "Policy is not active");
+        require(policyOwners[policyId][policyHolder], "Not a policy owner");
+        
+        payable(policyHolder).transfer(premiumsPaid[policyId][policyHolder]);
+    }
+
+    function setPayoutContract(address _payoutContract) external onlyOwner {
+        payoutContract = _payoutContract;
+    }
+
 }

@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "./PolicyMaker.sol";
+import "hardhat/console.sol";
 
 contract Payout {
     PolicyMaker policyMaker;
@@ -18,13 +19,13 @@ contract Payout {
 
         // Implement claim verification logic
         bool isClaimValid = verifyClaim(policyId, policyHolder, claimAmount);
-
+        
         if (isClaimValid) {
             uint256 totalCoverage = policyMaker.calculateTotalCoverage(policyId, policyHolder);
             uint256 payoutAmount = claimAmount > totalCoverage ? totalCoverage : claimAmount;
-
             // Perform the payout
-            payable(policyHolder).transfer(payoutAmount);
+            policyMaker.handlePayout(policyId, policyHolder, payoutAmount);
+            console.log("paid policy holder");
             emit ClaimProcessed(policyId, policyHolder, payoutAmount, true);
         } else {
             emit ClaimProcessed(policyId, policyHolder, 0, false);
