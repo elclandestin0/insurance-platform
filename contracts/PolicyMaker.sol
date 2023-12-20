@@ -122,7 +122,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         return coverageFactor;
     }
 
-    function handlePayout(uint32 policyId, address policyHolder, uint256 payoutAmount) external {
+    function handlePayout(uint32 policyId, address policyHolder, uint256 payoutAmount) external nonReentrant{
         require(msg.sender == payoutContract, "Caller is not the Payout contract");
         require(policies[policyId].isActive, "Policy is not active");
         require(policyOwners[policyId][policyHolder], "Not a policy owner");

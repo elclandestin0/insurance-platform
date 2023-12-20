@@ -2,40 +2,48 @@
 pragma solidity ^0.8.20;
 
 import "./PolicyMaker.sol";
-import "hardhat/console.sol";
 
 contract Payout {
     PolicyMaker policyMaker;
 
     event ClaimProcessed(uint32 indexed policyId, address indexed policyHolder, uint256 amount, bool approved);
 
-    constructor(address policyMakerAddress) {
-        policyMaker = PolicyMaker(policyMakerAddress);
+    constructor(address _policyMakerAddress) {
+        policyMaker = PolicyMaker(_policyMakerAddress);
     }
 
-    function processClaim(uint32 policyId, address policyHolder, uint256 claimAmount) public {
-        require(policyMaker.isPolicyOwner(policyId, policyHolder), "Not a policy owner");
-        require(policyMaker.isActive(policyId), "Policy is not active");
+    function processClaim(uint32 _policyId, address _policyHolder, uint256 _claimAmount) public {
+        require(policyMaker.isPolicyOwner(_policyId, _policyHolder), "Not a policy owner");
+        require(policyMaker.isActive(_policyId), "Policy is not active");
 
         // Implement claim verification logic
-        bool isClaimValid = verifyClaim(policyId, policyHolder, claimAmount);
-        
+        bool isClaimValid = verifyClaim(_policyId, _policyHolder, _claimAmount);
+
         if (isClaimValid) {
-            uint256 totalCoverage = policyMaker.calculateTotalCoverage(policyId, policyHolder);
-            uint256 payoutAmount = claimAmount > totalCoverage ? totalCoverage : claimAmount;
+            uint256 totalCoverage = policyMaker.calculateTotalCoverage(_policyId, _policyHolder);
+            uint256 payoutAmount = _claimAmount > totalCoverage ? totalCoverage : _claimAmount;
             // Perform the payout
-            policyMaker.handlePayout(policyId, policyHolder, payoutAmount);
-            console.log("paid policy holder");
-            emit ClaimProcessed(policyId, policyHolder, payoutAmount, true);
+            policyMaker.handlePayout(_policyId, _policyHolder, payoutAmount);
+            emit ClaimProcessed(_policyId, _policyHolder, payoutAmount, true);
         } else {
-            emit ClaimProcessed(policyId, policyHolder, 0, false);
+            emit ClaimProcessed(_policyId, _policyHolder, 0, false);
         }
     }
 
+
     function verifyClaim(uint32 policyId, address policyHolder, uint256 claimAmount) private view returns (bool) {
-        // Do middle ware verification in the future.
-        // We have to train an AI model to recognize what contract exploits
-        // look like. Then we can proceed.
-        return true;
+        // Example logic for verification
+        if (!policyMaker.isPolicyOwner(policyId, policyHolder)) {
+            return false;
+        }
+
+        address payable insuredContract = payable(policyHolder);
+        uint256 balance = insuredContract.balance;
+        Transaction[] transactions = insuredContract.getRecentTransactions();
+
+        bool isExploited = checkForExploitationPatterns(transactions) && (balance < threshold);
+
+        return isExploited;
     }
+
 }

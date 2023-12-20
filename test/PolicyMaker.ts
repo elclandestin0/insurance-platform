@@ -180,16 +180,11 @@ describe.only("PolicyMaker", function () {
 
             totalCoverage = await policyMaker.connect(addr1).calculateTotalCoverage(policyId, addr1.address);;
             const premiumsPaid = await policyMaker.premiumsPaid(policyId, addr1.address);
-            const initialCoverage = coverageAmount * initialPremiumFee / initialCoveragePercentage;
-            const additionalCoverage = (premiumsPaid - initialPremiumFee) * coverageFactor;
-            let expectedCoverage = initialCoverage + additionalCoverage;
-            
-            console.log("Expected coverage: ", expectedCoverage);
             
             // Process cliam after paying
             const claimAmount = ethers.parseEther("10");
             const balanceBefore = await ethers.provider.getBalance(addr1.address);
-            const processTx = await payout.connect(addr1).processClaim(policyId, addr1.address, claimAmount);
+            await payout.connect(addr1).processClaim(policyId, addr1.address, claimAmount);
             const balanceAfter = await ethers.provider.getBalance(addr1.address);
             expect(balanceAfter).to.be.greaterThan(balanceBefore);
         });
