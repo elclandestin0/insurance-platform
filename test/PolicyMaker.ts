@@ -1,6 +1,5 @@
 ﻿import {ethers} from "hardhat";
 import {expect} from "chai";
-import {Contract, JsonRpcSigner} from "ethers";
 import {HardhatEthersSigner, SignerWithAddress} from "@nomicfoundation/hardhat-ethers/signers";
 import {PolicyMaker, Payout} from "../typechain";
 import { BigNumberish } from "ethers";
@@ -15,7 +14,7 @@ describe.only("PolicyMaker", function () {
         [owner, addr1] = await ethers.getSigners();
         const PolicyMaker = await ethers.getContractFactory("PolicyMaker");
         const Payout = await ethers.getContractFactory("Payout");
-        policyMaker = await PolicyMaker.deploy(owner)
+        policyMaker = await PolicyMaker.deploy(owner.address)
         payout = await Payout.deploy(await policyMaker.getAddress());
         await policyMaker.waitForDeployment();
         await payout.waitForDeployment();

@@ -7,10 +7,10 @@ import "@typechain/hardhat";
 import '@eth-optimism/hardhat-ovm'; // Import the Optimism plugin
 
 const PRIVATE_KEY:string = process.env.PRIVATE_KEY || "";
-const API_KEY:string = process.env.API_KEY || "";
+const API_KEY:string = process.env.INFURA_API_KEY || "";
 
 const config: HardhatUserConfig = {
-  solidity: "0.8.20", // Your Solidity version
+  solidity: "0.7.6", // Your Solidity version
   networks: {
     // Add the Optimism network configuration
     optimism: {
@@ -22,9 +22,9 @@ const config: HardhatUserConfig = {
   typechain: {
     outDir: "typechain",
     target: "ethers-v5",
-  },
+  },  
   ovm: {
-    solcVersion: '0.8.20', // The Solidity version for the OVM compiler
+    solcVersion: '0.7.6', // Match this with the Solidity version
   },
 };
 

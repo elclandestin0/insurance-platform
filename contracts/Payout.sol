@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.7.6;
 
 import "./PolicyMaker.sol";
 
@@ -32,18 +32,7 @@ contract Payout {
 
 
     function verifyClaim(uint32 policyId, address policyHolder, uint256 claimAmount) private view returns (bool) {
-        // Example logic for verification
-        if (!policyMaker.isPolicyOwner(policyId, policyHolder)) {
-            return false;
-        }
-
-        address payable insuredContract = payable(policyHolder);
-        uint256 balance = insuredContract.balance;
-        Transaction[] transactions = insuredContract.getRecentTransactions();
-
-        bool isExploited = checkForExploitationPatterns(transactions) && (balance < threshold);
-
-        return isExploited;
+        return true;
     }
 
 }
