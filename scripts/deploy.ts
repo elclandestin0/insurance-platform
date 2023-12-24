@@ -1,26 +1,25 @@
 import { ethers } from "hardhat";
 
 async function main() {
-  const currentTimestampInSeconds = Math.round(Date.now() / 1000);
-  const unlockTime = currentTimestampInSeconds + 60;
+  // Deploy the first contract
+  const FirstContractFactory = await ethers.getContractFactory("PolicyMaker");
+  const firstContract = await FirstContractFactory.deploy(); // Add constructor arguments if needed
+  await firstContract.waitForDeployment();
+  console.log("FirstContract deployed to address:", firstContract.getAddress());
 
-  const lockedAmount = ethers.parseEther("0.001");
+  // Deploy the second contract
+  const SecondContractFactory = await ethers.getContractFactory("Payout");
+  const secondContract = await SecondContractFactory.deploy(); // Add constructor arguments if needed
+  await secondContract.waitForDeployment();
+  console.log("SecondContract deployed to address:", secondContract.getAddress());
 
-  const lock = await ethers.deployContract("Lock", [unlockTime], {
-    value: lockedAmount,
-  });
-
-  await lock.waitForDeployment();
-
-  console.log(
-    `Lock with ${ethers.formatEther(
-      lockedAmount
-    )}ETH and unlock timestamp ${unlockTime} deployed to ${lock.target}`
-  );
+  // Deploy the third contract
+  const ThirdContractFactory = await ethers.getContractFactory("ExploitationDetector");
+  const thirdContract = await ThirdContractFactory.deploy(); // Add constructor arguments if needed
+  await thirdContract.waitForDeployment();
+  console.log("ThirdContract deployed to address:", thirdContract.getAddress());
 }
 
-// We recommend this pattern to be able to use async/await everywhere
-// and properly handle errors.
 main().catch((error) => {
   console.error(error);
   process.exitCode = 1;
