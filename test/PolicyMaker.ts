@@ -1,6 +1,5 @@
 ﻿import {ethers} from "hardhat";
 import {expect} from "chai";
-import {HardhatEthersSigner, SignerWithAddress} from "@nomicfoundation/hardhat-ethers/signers";
 import {PolicyMaker, Payout} from "../typechain";
 import {BigNumberish, Signer} from "ethers";
 
@@ -16,8 +15,8 @@ describe.only("PolicyMaker", function () {
         const Payout = await ethers.getContractFactory("Payout");
         policyMaker = await PolicyMaker.deploy(owner.address)
         payout = await Payout.deploy(await policyMaker.getAddress());
-        await policyMaker.deployed();
-        await payout.deployed();
+        await policyMaker.waitForDeployment();
+        await payout.waitForDeployment();
         await policyMaker.setPayoutContract(await payout.getAddress());
     });
 
@@ -31,6 +30,8 @@ describe.only("PolicyMaker", function () {
             const initialPremiumFee: any = ethers.parseEther('20');
             const penaltyRate = ethers.parseUnits('20', 0);
             const initialCoveragePercentage = ethers.parseUnits('50', 0);
+            
+            console.log(await policyMaker.nextPolicyId());
 
             const tx = await policyMaker.createPolicy(coverageAmount, initialPremiumFee, initialCoveragePercentage, premiumRate, duration, penaltyRate, monthsGracePeriod);
 
@@ -39,6 +40,7 @@ describe.only("PolicyMaker", function () {
             expect(policy.premiumRate).to.equal(ethers.parseEther('10'));
             expect(policy.duration).to.equal(365);
             expect(policy.isActive).to.be.true;
+            console.log(await policyMaker.nextPolicyId());
         });
 
         // Add more tests for policy updates, deactivation, etc.

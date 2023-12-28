@@ -1,30 +1,21 @@
-import { ethers } from "hardhat";
-import {PolicyMaker, Payout} from "../typechain";
-import {HardhatEthersSigner} from "@nomicfoundation/hardhat-ethers/signers";
+const { ethers } = require("hardhat");
 
 async function main() {
-  // Deploy the first contract
-  let owner: HardhatEthersSigner;
-  [owner] = await ethers.getSigners();
-  const PolicyMaker = await ethers.getContractFactory("PolicyMaker");
-  const policyMaker: PolicyMaker = await PolicyMaker.deploy(owner.address); // Add constructor arguments if needed
-  await policyMaker.deployed();
-  console.log("Policy Maker deployed to address:", policyMaker.address);
+  const [owner] = await ethers.getSigners();
+  console.log("Deploying contracts with the account:", owner.address);
 
-  // Deploy the second contract
-  const Payout = await ethers.getContractFactory("Payout");
-  const payout = await Payout.deploy(await policyMaker.address); // Add constructor arguments if needed
-  await payout.deployed();
-  console.log("Payout deployed to address:", payout.address);
+  // Deploy PolicyMaker
+  const PolicyMakerFactory = await ethers.getContractFactory("PolicyMaker");
+  const policyMaker = await PolicyMakerFactory.deploy(owner.address);
+  await policyMaker.waitForDeployment();
+  console.log("Policy Maker deployed to address: ", await policyMaker.getAddress());
 
-  // // Deploy the third contract
-  const ExploitationDetector = await ethers.getContractFactory("ExploitationDetector");
-  const exploitationDetector = await ExploitationDetector.deploy(); // Add constructor arguments if needed
-  await exploitationDetector.deployed();
-  console.log("Exploitation detector deployed to address:", exploitationDetector.address);
+  // Deploy other contracts here following the same pattern
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+main()
+    .then(() => process.exit(0))
+    .catch((error) => {
+      console.error(error);
+      process.exit(1);
+    });
