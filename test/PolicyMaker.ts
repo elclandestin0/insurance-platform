@@ -1,9 +1,9 @@
 ﻿import {ethers} from "hardhat";
 import {expect} from "chai";
 import {PolicyMaker, Payout} from "../typechain";
-import {BigNumberish, Signer} from "ethers";
+import {BigNumber, Signer} from "ethers";
 
-describe.only("PolicyMaker", function () {
+describe("PolicyMaker", function () {
     let policyMaker: PolicyMaker;
     let payout: Payout;
     let owner: Signer, addr1: Signer;
@@ -56,7 +56,7 @@ describe.only("PolicyMaker", function () {
             const monthsGracePeriod = ethers.parseUnits('6', 0);
             const initialPremiumFee: any = ethers.parseEther('20');
             const penaltyRate = ethers.parseUnits('20', 0);
-            const address: any = addr1.address
+            const address: any = addr1.address;
             const initialCoveragePercentage = ethers.parseUnits('50', 0);
 
             await policyMaker.createPolicy(coverageAmount, initialPremiumFee, initialCoveragePercentage, premiumRate, duration, penaltyRate, monthsGracePeriod);
@@ -142,7 +142,7 @@ describe.only("PolicyMaker", function () {
             const coverageFactor = await policyMaker.calculateCoverageFactor();
             await policyMaker.connect(addr1).payPremium(policyId, {value: premium});
 
-            totalCoverage = await policyMaker.connect(addr1).calculateTotalCoverage(policyId, addr1.address);;
+            totalCoverage = await policyMaker.connect(addr1).calculateTotalCoverage(policyId, addr1.address);
             const premiumsPaid = await policyMaker.premiumsPaid(policyId, addr1.address);
             const initialCoverage = coverageAmount * initialPremiumFee / initialCoveragePercentage;
             const additionalCoverage = (premiumsPaid - initialPremiumFee) * coverageFactor;
@@ -188,6 +188,44 @@ describe.only("PolicyMaker", function () {
             await payout.connect(addr1).processClaim(policyId, addr1.address, claimAmount);
             const balanceAfter = await ethers.provider.getBalance(addr1.address);
             expect(balanceAfter).to.be.greaterThan(balanceBefore);
+        });
+    });
+    describe("Coverage fund and investment fund correct allocation", function () {
+        it("Should return the correct investment and coverage fund balance depending on the percentage", async function () {
+            const policyId = ethers.parseUnits('1', 0);
+            const coverageAmount = ethers.parseUnits('100', 0);
+            const initialPremiumFee = ethers.parseEther('20');
+            const premiumRate = ethers.parseEther('1');
+            const duration = ethers.parseUnits('365', 0);
+            const penaltyRate = ethers.parseUnits('20', 0);
+            const monthsGracePeriod = ethers.parseUnits('6', 0);
+            const initialCoveragePercentage = ethers.parseUnits('50', 0);
+            const coverageFundPercentage = ethers.parseUnits('75', 0);
+            const investmentFundPercentage = ethers.parseUnits('25', 0);
+            
+            // Create a policy
+            await policyMaker.createPolicy(coverageAmount, initialPremiumFee, initialCoveragePercentage, premiumRate, duration, penaltyRate, monthsGracePeriod);
+            await policyMaker.connect(addr1).payInitialPremium(policyId, { value: ethers.parseEther("20") });
+            // ... existing test setup ...
+
+            // Calculate expected fund allocations
+            const expectedCoverageFund = initialPremiumFee;
+            const expectedInvestmentFund = initialPremiumFee.mul(investmentFundPercentage).div(100);
+
+            // Pay the initial premium
+            await policyMaker.connect(addr1).payInitialPremium(policyId, { value: initialPremiumFee });
+
+            // Fetch the updated fund balances from the contract
+            const actualCoverageFundBalance = await policyMaker.coverageFundBalance();
+            const actualInvestmentFundBalance = await policyMaker.investmentFundBalance();
+
+            // Compare the actual fund balances with the expected allocations
+            expect(actualCoverageFundBalance).to.equal(expectedCoverageFund);
+            expect(actualInvestmentFundBalance).to.equal(expectedInvestmentFund);
+
+            // You may also want to check if the total of both funds equals the initial premium
+            const totalFunds = actualCoverageFundBalance.add(actualInvestmentFundBalance);
+            expect(totalFunds).to.equal(initialPremiumFee);
         });
     });
 });

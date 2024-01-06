@@ -22,6 +22,10 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     mapping(uint32 => mapping(address => uint256)) public premiumsPaid; // PolicyID -> Claimant -> Amount
     mapping(uint32 => mapping(address => uint256)) public lastPremiumPaidTime;
     uint32 public nextPolicyId = 1;
+    uint256 public coverageFundBalance;
+    uint256 public investmentFundBalance;
+    uint32 public coverageFundPercentage;
+    uint32 public investmentFundPercentage;
 
     constructor(address initialOwner) Ownable () {}
 
@@ -73,10 +77,13 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         require(policies[_policyId].isActive, "Policy does not exist or is not active");
         require(msg.value >= calculatePremium(_policyId, msg.sender), "Insufficient premium amount");
         require(isPolicyOwner(_policyId, msg.sender), "Not a claimant of this policy");
-
         premiumsPaid[_policyId][msg.sender] += msg.value;
         lastPremiumPaidTime[_policyId][msg.sender] = block.timestamp;
-        // Transfer the premium to the policy fund or handle accordingly
+        uint256 coverageAmount = (msg.value * 75) / 100;
+        uint256 investmentAmount = msg.value - coverageAmount;
+
+        coverageFundBalance += coverageAmount;
+        investmentFundBalance += investmentAmount;
         emit PremiumPaid(_policyId, msg.sender, msg.value, false);
     }
 
@@ -116,8 +123,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     }
 
     function calculateCoverageFactor() public pure returns (uint256) {
-        uint256 baseFactor = 2; // Base level of coverage per unit of premium
-        // to-do calculate duration adjustment
+        uint256 baseFactor = 2;
         uint256 coverageFactor = baseFactor;
         return coverageFactor;
     }
