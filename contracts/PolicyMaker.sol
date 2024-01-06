@@ -24,8 +24,8 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     mapping(uint32 => mapping(address => uint256)) public premiumsPaid; // PolicyID -> Claimant -> Amount
     mapping(uint32 => mapping(address => uint256)) public lastPremiumPaidTime;
     uint32 public nextPolicyId = 1;
-    uint256 public coverageFundBalance;
-    uint256 public investmentFundBalance;
+    mapping (uint32 => uint256) public coverageFundBalance;
+    mapping (uint32 => uint256) public investmentFundBalance;
 
     constructor(address initialOwner) Ownable () {}
 
@@ -67,13 +67,17 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     {
         require(policies[_policyId].isActive, "Policy is not active");
         require(msg.value >= policies[_policyId].initialPremiumFee, "Can't afford the rate!");
+        
+        // Store premiums paid for the account
         premiumsPaid[_policyId][msg.sender] += msg.value;
         policyOwners[_policyId][msg.sender] = true;
         lastPremiumPaidTime[_policyId][msg.sender] = block.timestamp;
+
+        // Calculate coverage and investment amount to add them to the fund
         uint256 coverageAmount = (msg.value * policies[_policyId].coverageFundPercentage) / 100;
         uint256 investmentAmount = (msg.value * policies[_policyId].investmentFundPercentage) / 100;
-        coverageFundBalance += coverageAmount;
-        investmentFundBalance += investmentAmount;
+        coverageFundBalance[_policyId] += coverageAmount;
+        investmentFundBalance[_policyId] += investmentAmount;
         emit PremiumPaid(_policyId, msg.sender, msg.value, true);
     }
 
@@ -89,8 +93,8 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         // Calculate coverage and investment amount to add them to the fund
         uint256 coverageAmount = (msg.value * policies[_policyId].coverageFundPercentage) / 100;
         uint256 investmentAmount = (msg.value * policies[_policyId].investmentFundPercentage) / 100;
-        coverageFundBalance += coverageAmount;
-        investmentFundBalance += investmentAmount;
+        coverageFundBalance[_policyId] += coverageAmount;
+        investmentFundBalance[_policyId] += investmentAmount;
 
         emit PremiumPaid(_policyId, msg.sender, msg.value, false);
     }
