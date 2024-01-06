@@ -14,6 +14,8 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         bool isActive;
         uint32 penaltyRate;
         uint32 monthsGracePeriod;
+        uint32 coverageFundPercentage;
+        uint32 investmentFundPercentage;
     }
     
     address private payoutContract;
@@ -24,8 +26,6 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     uint32 public nextPolicyId = 1;
     uint256 public coverageFundBalance;
     uint256 public investmentFundBalance;
-    uint32 public coverageFundPercentage;
-    uint32 public investmentFundPercentage;
 
     constructor(address initialOwner) Ownable () {}
 
@@ -34,8 +34,8 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     event PolicyDeactivated(uint32 policyId);
     event PremiumPaid(uint32 indexed policyId, address indexed claimant, uint256 amount, bool isPremium);
     
-    function createPolicy(uint256 _coverageAmount, uint256 _initialPremiumFee, uint256 _initialCoveragePercentage, uint256 _premiumRate, uint32 _duration, uint32 _penaltyRate, uint32 _monthsGracePeriod) public onlyOwner {
-        policies[nextPolicyId] = Policy(_coverageAmount, _initialPremiumFee, _initialCoveragePercentage, _premiumRate, _duration, true, _penaltyRate, _monthsGracePeriod);
+    function createPolicy(uint256 _coverageAmount, uint256 _initialPremiumFee, uint256 _initialCoveragePercentage, uint256 _premiumRate, uint32 _duration, uint32 _penaltyRate, uint32 _monthsGracePeriod, uint32 _coverageFundPercentage, uint32 _investmentFundPercentage) public onlyOwner {
+        policies[nextPolicyId] = Policy(_coverageAmount, _initialPremiumFee, _initialCoveragePercentage, _premiumRate, _duration, true, _penaltyRate, _monthsGracePeriod, _coverageFundPercentage, _investmentFundPercentage);
         emit PolicyCreated(nextPolicyId, _coverageAmount, _initialPremiumFee, _duration);
         nextPolicyId++;
     }
@@ -70,6 +70,10 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         premiumsPaid[_policyId][msg.sender] += msg.value;
         policyOwners[_policyId][msg.sender] = true;
         lastPremiumPaidTime[_policyId][msg.sender] = block.timestamp;
+        uint256 coverageAmount = (msg.value * policies[_policyId].coverageFundPercentage) / 100;
+        uint256 investmentAmount = (msg.value * policies[_policyId].investmentFundPercentage) / 100;
+        coverageFundBalance += coverageAmount;
+        investmentFundBalance += investmentAmount;
         emit PremiumPaid(_policyId, msg.sender, msg.value, true);
     }
 
@@ -77,13 +81,17 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         require(policies[_policyId].isActive, "Policy does not exist or is not active");
         require(msg.value >= calculatePremium(_policyId, msg.sender), "Insufficient premium amount");
         require(isPolicyOwner(_policyId, msg.sender), "Not a claimant of this policy");
+        
+        // Store premiums paid for the account
         premiumsPaid[_policyId][msg.sender] += msg.value;
         lastPremiumPaidTime[_policyId][msg.sender] = block.timestamp;
-        uint256 coverageAmount = (msg.value * 75) / 100;
-        uint256 investmentAmount = msg.value - coverageAmount;
 
+        // Calculate coverage and investment amount to add them to the fund
+        uint256 coverageAmount = (msg.value * policies[_policyId].coverageFundPercentage) / 100;
+        uint256 investmentAmount = (msg.value * policies[_policyId].investmentFundPercentage) / 100;
         coverageFundBalance += coverageAmount;
         investmentFundBalance += investmentAmount;
+
         emit PremiumPaid(_policyId, msg.sender, msg.value, false);
     }
 

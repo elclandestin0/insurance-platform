@@ -1,7 +1,7 @@
 ﻿import {ethers} from "hardhat";
 import {expect} from "chai";
 import {PolicyMaker, Payout} from "../typechain";
-import {BigNumber, Signer} from "ethers";
+import {BigNumberish, Signer} from "ethers";
 
 describe("PolicyMaker", function () {
     let policyMaker: PolicyMaker;
@@ -190,41 +190,37 @@ describe("PolicyMaker", function () {
             expect(balanceAfter).to.be.greaterThan(balanceBefore);
         });
     });
-    describe("Coverage fund and investment fund correct allocation", function () {
+    describe.only("Coverage fund and investment fund correct allocation", function () {
         it("Should return the correct investment and coverage fund balance depending on the percentage", async function () {
             const policyId = ethers.parseUnits('1', 0);
             const coverageAmount = ethers.parseUnits('100', 0);
-            const initialPremiumFee = ethers.parseEther('20');
+            const initialPremiumFee: BigNumber = ethers.parseEther('20');
             const premiumRate = ethers.parseEther('1');
             const duration = ethers.parseUnits('365', 0);
             const penaltyRate = ethers.parseUnits('20', 0);
             const monthsGracePeriod = ethers.parseUnits('6', 0);
             const initialCoveragePercentage = ethers.parseUnits('50', 0);
-            const coverageFundPercentage = ethers.parseUnits('75', 0);
-            const investmentFundPercentage = ethers.parseUnits('25', 0);
+            const coverageFundPercentage = ethers.toBigInt(75);
+            const investmentFundPercentage = ethers.toBigInt(25);
             
             // Create a policy
-            await policyMaker.createPolicy(coverageAmount, initialPremiumFee, initialCoveragePercentage, premiumRate, duration, penaltyRate, monthsGracePeriod);
+            await policyMaker.createPolicy(coverageAmount, initialPremiumFee, initialCoveragePercentage, premiumRate, duration, penaltyRate, monthsGracePeriod, coverageFundPercentage, investmentFundPercentage);
             await policyMaker.connect(addr1).payInitialPremium(policyId, { value: ethers.parseEther("20") });
-            // ... existing test setup ...
 
             // Calculate expected fund allocations
-            const expectedCoverageFund = initialPremiumFee;
-            const expectedInvestmentFund = initialPremiumFee.mul(investmentFundPercentage).div(100);
-
-            // Pay the initial premium
-            await policyMaker.connect(addr1).payInitialPremium(policyId, { value: initialPremiumFee });
+            const expectedCoverageFund = (initialPremiumFee * coverageFundPercentage) / ethers.toBigInt(100);
+            const expectedInvestmentFund = (initialPremiumFee * investmentFundPercentage) / ethers.toBigInt(100);
 
             // Fetch the updated fund balances from the contract
-            const actualCoverageFundBalance = await policyMaker.coverageFundBalance();
-            const actualInvestmentFundBalance = await policyMaker.investmentFundBalance();
+            const actualCoverageFundBalance: bigint = await policyMaker.coverageFundBalance();
+            const actualInvestmentFundBalance: bigint = await policyMaker.investmentFundBalance();
 
             // Compare the actual fund balances with the expected allocations
             expect(actualCoverageFundBalance).to.equal(expectedCoverageFund);
             expect(actualInvestmentFundBalance).to.equal(expectedInvestmentFund);
 
             // You may also want to check if the total of both funds equals the initial premium
-            const totalFunds = actualCoverageFundBalance.add(actualInvestmentFundBalance);
+            const totalFunds = actualCoverageFundBalance + actualInvestmentFundBalance;
             expect(totalFunds).to.equal(initialPremiumFee);
         });
     });
