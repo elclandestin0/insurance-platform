@@ -102,64 +102,97 @@ describe("PolicyMaker", function () {
             expect(initialPremiumFee).to.be.below(initialPremiumFee + premium);
         });
     });
-    describe("Coverage Calculation", function () {
-        it("Should calculate the correct total coverage of the initial premium fee", async function () {
+    describe.only("Coverage Calculation", function () {
+        // it("Should calculate the correct total coverage of the initial premium fee", async function () {
+        //     const policyId = ethers.parseUnits('1', 0);
+        //     const coverageAmount = ethers.parseUnits('100', 0);
+        //     const initialPremiumFee = ethers.parseEther('20');
+        //     const premiumRate = ethers.parseEther('1');
+        //     const duration = ethers.parseUnits('365', 0);
+        //     const penaltyRate = ethers.parseUnits('20', 0);
+        //     const monthsGracePeriod = ethers.parseUnits('6', 0);
+        //     const initialCoveragePercentage = ethers.parseUnits('50', 0);
+        //     const coverageFundPercentage = ethers.toBigInt(75);
+        //     const investmentFundPercentage = ethers.toBigInt(25);
+        //
+        //     // Create a policy
+        //     await policyMaker.createPolicy(coverageAmount, initialPremiumFee, initialCoveragePercentage, premiumRate, duration, penaltyRate, monthsGracePeriod, coverageFundPercentage, investmentFundPercentage);
+        //     await policyMaker.connect(addr1).payInitialPremium(policyId, {value: ethers.parseEther("20")});
+        //
+        //     // Calculate total coverage
+        //     const totalCoverage = await policyMaker.connect(addr1).calculateTotalCoverage(policyId, addr1.address);
+        //     expect(totalCoverage).to.equal(initialPremiumFee * await policyMaker.calculateCoverageFactor());
+        // });
+        // it("Should calculate the correct total coverage of other premiums", async function () {
+        //     const policyId = ethers.parseUnits('1', 0);
+        //     const coverageAmount = ethers.parseUnits('100', 0);
+        //     const initialPremiumFee = ethers.parseEther('20');
+        //     const premiumRate = ethers.parseEther('1');
+        //     const duration = ethers.parseUnits('365', 0);
+        //     const penaltyRate = ethers.parseUnits('20', 0);
+        //     const monthsGracePeriod = ethers.parseUnits('6', 0);
+        //     const initialCoveragePercentage = ethers.parseUnits('50', 0);
+        //     const coverageFundPercentage = ethers.toBigInt(75);
+        //     const investmentFundPercentage = ethers.toBigInt(25);
+        //
+        //     // Create a policy
+        //     await policyMaker.createPolicy(coverageAmount, initialPremiumFee, initialCoveragePercentage, premiumRate, duration, penaltyRate, monthsGracePeriod, coverageFundPercentage, investmentFundPercentage);
+        //
+        //     await policyMaker.connect(addr1).payInitialPremium(policyId, {value: ethers.parseEther("20")});
+        //
+        //     // Calculate total coverage
+        //     let totalCoverage = await policyMaker.connect(addr1).calculateTotalCoverage(policyId, addr1.address);
+        //     expect(totalCoverage).to.equal(initialPremiumFee * await policyMaker.calculateCoverageFactor());
+        //
+        //     // fast forward 7 months
+        //     const timeToFastForward = 3600 * 24 * 30 * 7;
+        //     await ethers.provider.send("evm_increaseTime", [timeToFastForward]);
+        //     await ethers.provider.send("evm_mine", []);
+        //
+        //     // Calculate premium after 7 months
+        //     const premium = await policyMaker.connect(addr1).calculatePremium(policyId, addr1.address);
+        //     const coverageFactor = await policyMaker.calculateCoverageFactor();
+        //     await policyMaker.connect(addr1).payPremium(policyId, {value: premium});
+        //
+        //     totalCoverage = await policyMaker.connect(addr1).calculateTotalCoverage(policyId, addr1.address);
+        //     const premiumsPaid = await policyMaker.premiumsPaid(policyId, addr1.address);
+        //     const initialCoverage = coverageAmount * initialPremiumFee / initialCoveragePercentage;
+        //     const additionalCoverage = (premiumsPaid - initialPremiumFee) * coverageFactor;
+        //     let expectedCoverage = initialCoverage + additionalCoverage;
+        //     expect(totalCoverage).to.equal(expectedCoverage);
+        // });
+        it("should calculate initial coverage correctly", async function() {
+            // Create a policy first
             const policyId = ethers.parseUnits('1', 0);
-            const coverageAmount = ethers.parseUnits('100', 0);
+            const coverageAmount = ethers.parseEther('100'); // Assuming coverage amount is 100 Ether
             const initialPremiumFee = ethers.parseEther('20');
-            const premiumRate = ethers.parseEther('1');
-            const duration = ethers.parseUnits('365', 0);
-            const penaltyRate = ethers.parseUnits('20', 0);
-            const monthsGracePeriod = ethers.parseUnits('6', 0);
-            const initialCoveragePercentage = ethers.parseUnits('50', 0);
-            const coverageFundPercentage = ethers.toBigInt(75);
-            const investmentFundPercentage = ethers.toBigInt(25);
+            const premiumRate = ethers.parseEther('1'); // Monthly rate
+            const duration = ethers.parseUnits('365', 0); // Duration in days
+            const penaltyRate = ethers.parseUnits('20', 0); // Penalty rate
+            const monthsGracePeriod = ethers.parseUnits('6', 0); // Grace period in months
+            const initialCoveragePercentage = ethers.parseUnits('50', 0); // 50%
+            const coverageFundPercentage = ethers.toBigInt(75); // 75%
+            const investmentFundPercentage = ethers.toBigInt(25); // 25%
 
-            // Create a policy
-            await policyMaker.createPolicy(coverageAmount, initialPremiumFee, initialCoveragePercentage, premiumRate, duration, penaltyRate, monthsGracePeriod, coverageFundPercentage, investmentFundPercentage);
-            await policyMaker.connect(addr1).payInitialPremium(policyId, {value: ethers.parseEther("20")});
-
-            // Calculate total coverage
-            const totalCoverage = await policyMaker.connect(addr1).calculateTotalCoverage(policyId, addr1.address);
-            expect(totalCoverage).to.equal(initialPremiumFee * await policyMaker.calculateCoverageFactor());
-        });
-        it("Should calculate the correct total coverage of other premiums", async function () {
-            const policyId = ethers.parseUnits('1', 0);
-            const coverageAmount = ethers.parseUnits('100', 0);
-            const initialPremiumFee = ethers.parseEther('20');
-            const premiumRate = ethers.parseEther('1');
-            const duration = ethers.parseUnits('365', 0);
-            const penaltyRate = ethers.parseUnits('20', 0);
-            const monthsGracePeriod = ethers.parseUnits('6', 0);
-            const initialCoveragePercentage = ethers.parseUnits('50', 0);
-            const coverageFundPercentage = ethers.toBigInt(75);
-            const investmentFundPercentage = ethers.toBigInt(25);
-
-            // Create a policy
+            // Create the policy
             await policyMaker.createPolicy(coverageAmount, initialPremiumFee, initialCoveragePercentage, premiumRate, duration, penaltyRate, monthsGracePeriod, coverageFundPercentage, investmentFundPercentage);
 
-            await policyMaker.connect(addr1).payInitialPremium(policyId, {value: ethers.parseEther("20")});
+            // Pay initial premium and four additional premiums
+            await policyMaker.connect(addr1).payInitialPremium(policyId, { value: initialPremiumFee });
+            for (let i = 0; i < 4; i++) {
+                await policyMaker.connect(addr1).payPremium(policyId, { value: premiumRate });
+            }
 
-            // Calculate total coverage
-            let totalCoverage = await policyMaker.connect(addr1).calculateTotalCoverage(policyId, addr1.address);
-            expect(totalCoverage).to.equal(initialPremiumFee * await policyMaker.calculateCoverageFactor());
+            // Calculate the total coverage
+            const totalCoverage = await policyMaker.connect(addr1).calculateTotalCoverage(policyId, await addr1.getAddress());
 
-            // fast forward 7 months
-            const timeToFastForward = 3600 * 24 * 30 * 7;
-            await ethers.provider.send("evm_increaseTime", [timeToFastForward]);
-            await ethers.provider.send("evm_mine", []);
+            // Calculate the expected total coverage
+            const initialCoverage = coverageAmount * initialCoveragePercentage / ethers.toBigInt(100);
+            const additionalCoverage = premiumRate * ethers.toBigInt(4) * await policyMaker.calculateDynamicCoverageFactor(policyId, await addr1.getAddress());
+            const expectedTotalCoverage = initialCoverage + additionalCoverage;
 
-            // Calculate premium after 7 months
-            const premium = await policyMaker.connect(addr1).calculatePremium(policyId, addr1.address);
-            const coverageFactor = await policyMaker.calculateCoverageFactor();
-            await policyMaker.connect(addr1).payPremium(policyId, {value: premium});
-
-            totalCoverage = await policyMaker.connect(addr1).calculateTotalCoverage(policyId, addr1.address);
-            const premiumsPaid = await policyMaker.premiumsPaid(policyId, addr1.address);
-            const initialCoverage = coverageAmount * initialPremiumFee / initialCoveragePercentage;
-            const additionalCoverage = (premiumsPaid - initialPremiumFee) * coverageFactor;
-            let expectedCoverage = initialCoverage + additionalCoverage;
-            expect(totalCoverage).to.equal(expectedCoverage);
+            // Check if the total coverage is as expected
+            expect(totalCoverage).to.equal(expectedTotalCoverage);
         });
     });
     describe("Claim Processing", function () {
@@ -205,7 +238,7 @@ describe("PolicyMaker", function () {
             expect(balanceAfter).to.be.greaterThan(balanceBefore);
         });
     });
-    describe.only("Coverage fund and investment fund correct allocation", function () {
+    describe("Coverage fund and investment fund correct allocation", function () {
         it("Should return the correct investment and coverage fund balance depending on the percentage", async function () {
             const policyId = ethers.parseUnits('1', 0);
             const coverageAmount = ethers.parseUnits('100', 0);

@@ -3,6 +3,7 @@ pragma solidity ^0.7.6;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "hardhat/console.sol";
 
 contract PolicyMaker is Ownable, ReentrancyGuard {
     struct Policy {
@@ -152,23 +153,22 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         // The actual calculation would depend on how these variables are intended to influence the factor
         uint256 factor = 1.0 + calculateTimeBasedIncrease(block.timestamp - policy.startTime)
             + calculatePaymentBasedIncrease(_policyId, _policyHolder);
-
         return factor;
     }
-    
-    // Increase factor based on elapsed time since policy start
+
     function calculateTimeBasedIncrease(uint256 timeSinceStart) internal pure returns (uint256) {
         uint256 monthsElapsed = timeSinceStart / 30 days;
-        return monthsElapsed * 0.1;
+        uint256 factorIncrease = monthsElapsed * 10 * 100;
+        return factorIncrease / 100;
     }
 
-    // Increase factor based on the number of premium payments
     function calculatePaymentBasedIncrease(uint32 _policyId, address _policyHolder) internal view returns (uint256) {
         uint256 numberOfPayments = timesPaid[_policyId][_policyHolder];
-        return numberOfPayments * 0.05;
+        uint256 factorIncrease = numberOfPayments * 2 * 100;
+        return factorIncrease / 100;
     }
-
-    function handlePayout(uint32 policyId, address payable policyHolder, uint256 payoutAmount) external nonReentrant {
+    
+    function handlePayout(uint32 policyId, address payable policyHolder, uint256 payoutAmount) external payable nonReentrant {
         require(msg.sender == payoutContract, "Caller is not the Payout contract");
         require(policies[policyId].isActive, "Policy is not active");
         require(policyOwners[policyId][policyHolder], "Not a policy owner");
