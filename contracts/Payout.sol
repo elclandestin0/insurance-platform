@@ -31,8 +31,9 @@ contract Payout {
     }
 
 
+    // For now, I made this return just true for simplicity's sake.
     function verifyClaim(uint32 policyId, address policyHolder, uint256 claimAmount) private view returns (bool) {
         return true;
     }
-
+    
 }

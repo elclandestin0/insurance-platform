@@ -10,18 +10,20 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         uint256 initialPremiumFee;
         uint256 initialCoveragePercentage;
         uint256 premiumRate;
-        uint32 duration; // to-do change this variable to just calculate the unix timestamp.
+        uint32 duration;
         bool isActive;
         uint32 penaltyRate;
         uint32 monthsGracePeriod;
         uint32 coverageFundPercentage;
         uint32 investmentFundPercentage;
+        uint256 startTime;
     }
     
     address private payoutContract;
     mapping(uint32 => Policy) public policies;
     mapping(uint32 => mapping(address => bool)) public policyOwners;
-    mapping(uint32 => mapping(address => uint256)) public premiumsPaid; // PolicyID -> Claimant -> Amount
+    mapping(uint32 => mapping(address => uint256)) public premiumsPaid;
+    mapping(uint32 => mapping(address => uint32)) public timesPaid;
     mapping(uint32 => mapping(address => uint256)) public lastPremiumPaidTime;
     uint32 public nextPolicyId = 1;
     mapping (uint32 => uint256) public coverageFundBalance;
@@ -35,7 +37,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     event PremiumPaid(uint32 indexed policyId, address indexed claimant, uint256 amount, bool isPremium);
     
     function createPolicy(uint256 _coverageAmount, uint256 _initialPremiumFee, uint256 _initialCoveragePercentage, uint256 _premiumRate, uint32 _duration, uint32 _penaltyRate, uint32 _monthsGracePeriod, uint32 _coverageFundPercentage, uint32 _investmentFundPercentage) public onlyOwner {
-        policies[nextPolicyId] = Policy(_coverageAmount, _initialPremiumFee, _initialCoveragePercentage, _premiumRate, _duration, true, _penaltyRate, _monthsGracePeriod, _coverageFundPercentage, _investmentFundPercentage);
+        policies[nextPolicyId] = Policy(_coverageAmount, _initialPremiumFee, _initialCoveragePercentage, _premiumRate, _duration, true, _penaltyRate, _monthsGracePeriod, _coverageFundPercentage, _investmentFundPercentage, block.timestamp);
         emit PolicyCreated(nextPolicyId, _coverageAmount, _initialPremiumFee, _duration);
         nextPolicyId++;
     }
@@ -88,6 +90,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         
         // Store premiums paid for the account
         premiumsPaid[_policyId][msg.sender] += msg.value;
+        timesPaid[_policyId][msg.sender] += 1;
         lastPremiumPaidTime[_policyId][msg.sender] = block.timestamp;
 
         // Calculate coverage and investment amount to add them to the fund
@@ -122,32 +125,62 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     }
 
     function calculateTotalCoverage(uint32 _policyId, address _policyHolder) public view returns (uint256) {
-        Policy memory policy = policies[_policyId];
-        require(policy.isActive, "Policy is not active");
-        uint256 initialCoverage = policy.coverageAmount * policy.initialPremiumFee / policy.initialCoveragePercentage;
-        
-        // Assuming each unit of premium adds a certain amount of coverage
-        uint256 totalPremiumsPaid = premiumsPaid[_policyId][_policyHolder];
-        uint256 coverageFactor = calculateCoverageFactor(); // For example, each 1 ETH of premium adds 2 ETH of coverage
-        uint256 additionalCoverage = (totalPremiumsPaid - policy.initialPremiumFee) * coverageFactor;
+        require(policies[_policyId].isActive, "Policy is not active");
+
+        uint256 initialCoverage = calculateInitialCoverage(_policyId);
+        uint256 additionalCoverage = calculateAdditionalCoverage(_policyId, _policyHolder);
+
         uint256 totalCoverage = initialCoverage + additionalCoverage;
-        return totalCoverage;
+        return (totalCoverage > policies[_policyId].coverageAmount) ? policies[_policyId].coverageAmount : totalCoverage;
     }
 
-    function calculateCoverageFactor() public pure returns (uint256) {
-        uint256 baseFactor = 2;
-        uint256 coverageFactor = baseFactor;
-        return coverageFactor;
+    function calculateInitialCoverage(uint32 _policyId) internal view returns (uint256) {
+        return policies[_policyId].coverageAmount * policies[_policyId].initialCoveragePercentage / 100;
     }
 
-    function handlePayout(uint32 policyId, address policyHolder, uint256 payoutAmount) external nonReentrant{
+    function calculateAdditionalCoverage(uint32 _policyId, address _policyHolder) internal view returns (uint256) {
+        uint256 totalPremiumsPaid = premiumsPaid[_policyId][_policyHolder];
+        uint256 coverageFactor = calculateDynamicCoverageFactor(_policyId, _policyHolder);
+        if (totalPremiumsPaid <= policies[_policyId].initialPremiumFee) {
+            return 0;
+        }
+        return (totalPremiumsPaid - policies[_policyId].initialPremiumFee) * coverageFactor;
+    }
+
+    function calculateDynamicCoverageFactor(uint32 _policyId, address _policyHolder) public view returns (uint256) {
+        Policy memory policy = policies[_policyId];
+        // The actual calculation would depend on how these variables are intended to influence the factor
+        uint256 factor = 1.0 + calculateTimeBasedIncrease(block.timestamp - policy.startTime)
+            + calculatePaymentBasedIncrease(_policyId, _policyHolder);
+
+        return factor;
+    }
+    
+    // Increase factor based on elapsed time since policy start
+    function calculateTimeBasedIncrease(uint256 timeSinceStart) internal pure returns (uint256) {
+        uint256 monthsElapsed = timeSinceStart / 30 days;
+        return monthsElapsed * 0.1;
+    }
+
+    // Increase factor based on the number of premium payments
+    function calculatePaymentBasedIncrease(uint32 _policyId, address _policyHolder) internal view returns (uint256) {
+        uint256 numberOfPayments = timesPaid[_policyId][_policyHolder];
+        return numberOfPayments * 0.05;
+    }
+
+    function handlePayout(uint32 policyId, address payable policyHolder, uint256 payoutAmount) external nonReentrant {
         require(msg.sender == payoutContract, "Caller is not the Payout contract");
         require(policies[policyId].isActive, "Policy is not active");
         require(policyOwners[policyId][policyHolder], "Not a policy owner");
-        
-        payable(policyHolder).transfer(premiumsPaid[policyId][policyHolder]);
-    }
+        require(payoutAmount <= coverageFundBalance[policyId], "Insufficient coverage fund");
 
+        // Update the coverage fund balance
+        coverageFundBalance[policyId] -= payoutAmount;
+
+        // Transfer the payout amount to the policy holder
+        policyHolder.transfer(payoutAmount);
+    }
+    
     function setPayoutContract(address _payoutContract) external onlyOwner {
         payoutContract = _payoutContract;
     }
