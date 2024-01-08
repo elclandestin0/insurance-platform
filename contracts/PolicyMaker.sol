@@ -68,6 +68,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     // Payments section
     function payInitialPremium(uint32 _policyId) public payable
     {
+        require(!isPolicyOwner(_policyId, msg.sender), "Not a claimant of this policy");
         require(policies[_policyId].isActive, "Policy is not active");
         require(msg.value >= policies[_policyId].initialPremiumFee, "Can't afford the rate!");
         
@@ -138,6 +139,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     function calculateInitialCoverage(uint32 _policyId) internal view returns (uint256) {
         return policies[_policyId].coverageAmount * policies[_policyId].initialCoveragePercentage / 100;
     }
+    // 0.01 * 15 / 100
 
     function calculateAdditionalCoverage(uint32 _policyId, address _policyHolder) internal view returns (uint256) {
         uint256 totalPremiumsPaid = premiumsPaid[_policyId][_policyHolder];
@@ -151,8 +153,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     function calculateDynamicCoverageFactor(uint32 _policyId, address _policyHolder) public view returns (uint256) {
         Policy memory policy = policies[_policyId];
         // The actual calculation would depend on how these variables are intended to influence the factor
-        uint256 factor = 1.0 + calculateTimeBasedIncrease(block.timestamp - policy.startTime)
-            + calculatePaymentBasedIncrease(_policyId, _policyHolder);
+        uint256 factor = 1.0 + calculateTimeBasedIncrease(block.timestamp - policy.startTime);
         return factor;
     }
 
@@ -162,12 +163,6 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         return factorIncrease / 100;
     }
 
-    function calculatePaymentBasedIncrease(uint32 _policyId, address _policyHolder) internal view returns (uint256) {
-        uint256 numberOfPayments = timesPaid[_policyId][_policyHolder];
-        uint256 factorIncrease = numberOfPayments * 2 * 100;
-        return factorIncrease / 100;
-    }
-    
     function handlePayout(uint32 policyId, address payable policyHolder, uint256 payoutAmount) external payable nonReentrant {
         require(msg.sender == payoutContract, "Caller is not the Payout contract");
         require(policies[policyId].isActive, "Policy is not active");
