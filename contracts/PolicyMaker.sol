@@ -168,6 +168,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         require(policies[policyId].isActive, "Policy is not active");
         require(policyOwners[policyId][policyHolder], "Not a policy owner");
         require(payoutAmount <= coverageFundBalance[policyId], "Insufficient coverage fund");
+        require(payoutAmount <= calculateTotalCoverage(policyId, policyHolder), "Insufficient coverage fund");
 
         // Update the coverage fund balance
         coverageFundBalance[policyId] -= payoutAmount;
