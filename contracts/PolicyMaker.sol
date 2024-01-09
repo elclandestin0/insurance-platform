@@ -26,6 +26,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     mapping(uint32 => mapping(address => uint256)) public premiumsPaid;
     mapping(uint32 => mapping(address => uint32)) public timesPaid;
     mapping(uint32 => mapping(address => uint256)) public lastPremiumPaidTime;
+    mapping(uint32 => mapping(address => uint256)) public amountClaimed;
     uint32 public nextPolicyId = 1;
     mapping (uint32 => uint256) public coverageFundBalance;
     mapping (uint32 => uint256) public investmentFundBalance;
@@ -78,17 +79,15 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         lastPremiumPaidTime[_policyId][msg.sender] = block.timestamp;
 
         // Calculate coverage and investment amount to add them to the fund
-        uint256 coverageAmount = (msg.value * policies[_policyId].coverageFundPercentage) / 100;
-        uint256 investmentAmount = (msg.value * policies[_policyId].investmentFundPercentage) / 100;
-        coverageFundBalance[_policyId] += coverageAmount;
-        investmentFundBalance[_policyId] += investmentAmount;
+        coverageFundBalance[_policyId] += (msg.value * policies[_policyId].coverageFundPercentage) / 100;
+        investmentFundBalance[_policyId] += (msg.value * policies[_policyId].investmentFundPercentage) / 100;
         emit PremiumPaid(_policyId, msg.sender, msg.value, true);
     }
 
     function payPremium(uint32 _policyId) public payable {
+        require(isPolicyOwner(_policyId, msg.sender), "Not a claimant of this policy");
         require(policies[_policyId].isActive, "Policy does not exist or is not active");
         require(msg.value >= calculatePremium(_policyId, msg.sender), "Insufficient premium amount");
-        require(isPolicyOwner(_policyId, msg.sender), "Not a claimant of this policy");
         
         // Store premiums paid for the account
         premiumsPaid[_policyId][msg.sender] += msg.value;
@@ -96,11 +95,8 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         lastPremiumPaidTime[_policyId][msg.sender] = block.timestamp;
 
         // Calculate coverage and investment amount to add them to the fund
-        uint256 coverageAmount = (msg.value * policies[_policyId].coverageFundPercentage) / 100;
-        uint256 investmentAmount = (msg.value * policies[_policyId].investmentFundPercentage) / 100;
-        coverageFundBalance[_policyId] += coverageAmount;
-        investmentFundBalance[_policyId] += investmentAmount;
-
+        coverageFundBalance[_policyId] += (msg.value * policies[_policyId].coverageFundPercentage) / 100;
+        investmentFundBalance[_policyId] += (msg.value * policies[_policyId].investmentFundPercentage) / 100;
         emit PremiumPaid(_policyId, msg.sender, msg.value, false);
     }
 
@@ -132,15 +128,14 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         uint256 initialCoverage = calculateInitialCoverage(_policyId);
         uint256 additionalCoverage = calculateAdditionalCoverage(_policyId, _policyHolder);
 
-        uint256 totalCoverage = initialCoverage + additionalCoverage;
+        uint256 totalCoverage = (initialCoverage + additionalCoverage) - amountClaimed[_policyId][_policyHolder];
         return (totalCoverage > policies[_policyId].coverageAmount) ? policies[_policyId].coverageAmount : totalCoverage;
     }
 
     function calculateInitialCoverage(uint32 _policyId) internal view returns (uint256) {
         return policies[_policyId].coverageAmount * policies[_policyId].initialCoveragePercentage / 100;
     }
-    // 0.01 * 15 / 100
-
+    
     function calculateAdditionalCoverage(uint32 _policyId, address _policyHolder) internal view returns (uint256) {
         uint256 totalPremiumsPaid = premiumsPaid[_policyId][_policyHolder];
         uint256 coverageFactor = calculateDynamicCoverageFactor(_policyId, _policyHolder);
@@ -149,7 +144,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         }
         return (totalPremiumsPaid - policies[_policyId].initialPremiumFee) * coverageFactor;
     }
-
+ 
     function calculateDynamicCoverageFactor(uint32 _policyId, address _policyHolder) public view returns (uint256) {
         Policy memory policy = policies[_policyId];
         // The actual calculation would depend on how these variables are intended to influence the factor
@@ -172,6 +167,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         uint256 payoutAmount = claimAmount > calculateTotalCoverage(policyId, msg.sender) ? calculateTotalCoverage(policyId, msg.sender) : claimAmount;
         // Update the coverage fund balance
         coverageFundBalance[policyId] -= payoutAmount;
+        amountClaimed[policyId][msg.sender] += payoutAmount;
 
         // Transfer the payout amount to the policy holder
         payable(msg.sender).transfer(payoutAmount);
