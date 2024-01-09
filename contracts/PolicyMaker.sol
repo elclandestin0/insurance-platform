@@ -69,7 +69,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     // Payments section
     function payInitialPremium(uint32 _policyId) public payable
     {
-        require(!isPolicyOwner(_policyId, msg.sender), "Not a claimant of this policy");
+        require(!isPolicyOwner(_policyId, msg.sender), "Already a claimant of this policy");
         require(policies[_policyId].isActive, "Policy is not active");
         require(msg.value >= policies[_policyId].initialPremiumFee, "Can't afford the rate!");
         
@@ -108,10 +108,12 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         uint256 timeElapsed = block.timestamp - lastPremiumPaidTime[_policyId][_policyHolder];
         uint256 daysElapsed = timeElapsed / 60 / 60 / 24;
 
-        uint256 dailyRate = policies[_policyId].premiumRate / 30; // Assuming premiumRate is monthly
+        uint256 dailyRate = policies[_policyId].premiumRate / 30; 
+        // Assuming premiumRate is monthly
         uint256 duePremium = daysElapsed * dailyRate;
         uint256 premium = policies[_policyId].premiumRate;
         premium += duePremium;
+        
         // To-do: make a better calculation using just timestamp in the future
         uint256 monthsElapsed = daysElapsed / 30;
         if (monthsElapsed > policies[_policyId].monthsGracePeriod) {
@@ -121,13 +123,20 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         }
         return premium;
     }
+    
+    // This function is used to check the potential coverage as the user is inputting the amount in premium
+    function calculatePotentialCoverage(uint32 _policyId, address _policyHolder, uint256 inputPremium) public view returns (uint256) {
+        require(policies[_policyId].isActive, "Policy is not active");
+        uint256 currentTotalCoverage = calculateTotalCoverage(_policyId, _policyHolder);
+        uint256 additionalCoverage = (inputPremium * calculateDynamicCoverageFactor(_policyId, _policyHolder));
+        uint256 potentialCoverage = currentTotalCoverage + additionalCoverage;
+        return (potentialCoverage > policies[_policyId].coverageAmount) ? policies[_policyId].coverageAmount : potentialCoverage;
+    }
 
     function calculateTotalCoverage(uint32 _policyId, address _policyHolder) public view returns (uint256) {
         require(policies[_policyId].isActive, "Policy is not active");
-
         uint256 initialCoverage = calculateInitialCoverage(_policyId);
         uint256 additionalCoverage = calculateAdditionalCoverage(_policyId, _policyHolder);
-
         uint256 totalCoverage = (initialCoverage + additionalCoverage) - amountClaimed[_policyId][_policyHolder];
         return (totalCoverage > policies[_policyId].coverageAmount) ? policies[_policyId].coverageAmount : totalCoverage;
     }
