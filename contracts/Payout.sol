@@ -22,7 +22,7 @@ contract Payout {
             uint256 totalCoverage = policyMaker.calculateTotalCoverage(_policyId, _policyHolder);
             uint256 payoutAmount = _claimAmount > totalCoverage ? totalCoverage : _claimAmount;
             // Perform the payout
-            policyMaker.handlePayout(_policyId, _policyHolder, payoutAmount);
+            policyMaker.handlePayout(_policyId, payoutAmount);
             emit ClaimProcessed(_policyId, _policyHolder, payoutAmount, true);
         } else {
             emit ClaimProcessed(_policyId, _policyHolder, 0, false);

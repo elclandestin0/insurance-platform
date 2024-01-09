@@ -163,18 +163,18 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         return factorIncrease / 100;
     }
 
-    function handlePayout(uint32 policyId, address payable policyHolder, uint256 claimAmount) external nonReentrant {
+    function handlePayout(uint32 policyId, uint256 claimAmount) public nonReentrant {
         require(policies[policyId].isActive, "Policy is not active");
-        require(policyOwners[policyId][policyHolder], "Not a policy owner");
+        require(policyOwners[policyId][msg.sender], "Not a policy owner");
         require(claimAmount <= coverageFundBalance[policyId], "Insufficient coverage fund");
-        require(claimAmount <= calculateTotalCoverage(policyId, policyHolder), "Insufficient coverage fund");
+        require(claimAmount <= calculateTotalCoverage(policyId, msg.sender), "Insufficient coverage fund");
 
-        uint256 payoutAmount = claimAmount > calculateTotalCoverage(policyId, policyHolder) ? calculateTotalCoverage(policyId, policyHolder) : claimAmount;
+        uint256 payoutAmount = claimAmount > calculateTotalCoverage(policyId, msg.sender) ? calculateTotalCoverage(policyId, msg.sender) : claimAmount;
         // Update the coverage fund balance
         coverageFundBalance[policyId] -= payoutAmount;
 
         // Transfer the payout amount to the policy holder
-        policyHolder.transfer(payoutAmount);
+        payable(msg.sender).transfer(payoutAmount);
     }
     
     function setPayoutContract(address _payoutContract) external onlyOwner {

@@ -238,7 +238,7 @@ describe("PolicyMaker", function () {
             expect(await policyMaker.isPolicyOwner(policyId, addr1.address)).to.be.true;
 
             // Process the claim
-            await payout.connect(addr1).processClaim(policyId, addr1.address, claimAmount);
+            await policyMaker.connect(addr1).handlePayout(policyId,  claimAmount);
 
             // The payout amount should be equal to the claim amount since it's less than the total coverage
             const coverageFundBalanceBefore = await policyMaker.coverageFundBalance(policyId);
