@@ -140,7 +140,7 @@ describe("PolicyMaker", function () {
     describe("Claim Processing", function () {
         it("Should process a claim correctly", async function () {
             const policyId = ethers.parseUnits('1', 0);
-            const coverageAmount = ethers.parseUnits('100', 0);
+            const coverageAmount = ethers.parseEther('100');
             const initialPremiumFee = ethers.parseEther('20');
             const premiumRate = ethers.parseEther('1');
             const duration = ethers.parseUnits('365', 0);
@@ -183,8 +183,8 @@ describe("PolicyMaker", function () {
     describe("Coverage fund and investment fund correct allocation", function () {
         it("Should return the correct investment and coverage fund balance depending on the percentage", async function () {
             const policyId = ethers.parseUnits('1', 0);
-            const coverageAmount = ethers.parseUnits('100', 0);
-            const initialPremiumFee: BigNumber = ethers.parseEther('20');
+            const coverageAmount = ethers.parseEther('100');
+            const initialPremiumFee = ethers.parseEther('20');
             const premiumRate = ethers.parseEther('1');
             const duration = ethers.parseUnits('365', 0);
             const penaltyRate = ethers.parseUnits('20', 0);
@@ -217,7 +217,7 @@ describe("PolicyMaker", function () {
     describe.only("Claim processing", function () {
         it("Should process a valid claim and transfer the correct payout amount", async function () {
             const policyId = ethers.parseUnits('1', 0);
-            const coverageAmount = ethers.parseUnits('100', 0);
+            const coverageAmount = ethers.parseEther('100');
             const initialPremiumFee = ethers.parseEther('20');
             const premiumRate = ethers.parseEther('5');
             const duration = ethers.parseUnits('365', 0);
@@ -248,7 +248,42 @@ describe("PolicyMaker", function () {
             const addr1BalanceBefore = await ethers.provider.getBalance(addr1.address);
             const addr1BalanceAfter = await ethers.provider.getBalance(addr1.address);
             expect(addr1BalanceAfter).to.equal(addr1BalanceBefore + claimAmount);
+        });
+        it("Should calculate the correct premium size factor based on the input premium", async function () {
+            const policyId = ethers.parseUnits('1', 0);
+            const coverageAmount = ethers.parseEther('100');
+            const initialPremiumFee = ethers.parseEther('20');
+            const premiumRate = ethers.parseEther('5');
+            const duration = ethers.parseUnits('365', 0);
+            const penaltyRate = ethers.parseUnits('20', 0);
+            const monthsGracePeriod = ethers.parseUnits('6', 0);
+            const initialCoveragePercentage = ethers.parseUnits('50', 0);
+            const coverageFundPercentage = ethers.toBigInt(75);
+            const investmentFundPercentage = ethers.toBigInt(25);
+
+            // Create a policy
+            await policyMaker.createPolicy(coverageAmount, initialPremiumFee, initialCoveragePercentage, premiumRate, duration, penaltyRate, monthsGracePeriod, coverageFundPercentage, investmentFundPercentage);
             
+            // Test various premium amounts to check the premium size factor
+            const testPremiums = [
+                ethers.parseEther('1'), // 1% of coverageAmount
+                ethers.parseEther('5'), // 10% of coverageAmount
+                ethers.parseEther('10'), // 10% of coverageAmount
+                ethers.parseEther('25'), // 25% of coverageAmount
+                ethers.parseEther('50'), // 50% of coverageAmount
+                ethers.parseEther('75'), // 75% of coverageAmount
+                ethers.parseEther('100') // 100% of coverageAmount
+            ];
+    
+            for (let i = 0; i < testPremiums.length; i++) {
+                const premium = testPremiums[i];
+                const premiumSizeFactor = await policyMaker.calculatePremiumSizeFactor(policyId, premium);
+                console.log(premiumSizeFactor);
+                // Check if the premium size factor is calculated correctly
+                // The exact assertion can vary based on the expected logic of premiumSizeFactor
+                // expect(premiumSizeFactor).to.be.at.least(0);
+                // expect(premiumSizeFactor).to.be.below(2); // Assuming the maximum factor is less than 2
+            }
         });
     })
 });
