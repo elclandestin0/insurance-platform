@@ -298,29 +298,44 @@ describe("PolicyMaker", function () {
                 // expect(premiumSizeFactor).to.be.below(2); // Assuming the maximum factor is less than 2
             }
         });
-        it.only("Should handle premiums correctly for coverage and investment funds", async function () {
+        it.only("should correctly allocate premium to coverage and investment funds", async function () {
+            // Create policy
+            const coverageAmount = ethers.parseEther("100"); // 100 ETH coverage amount
+            const initialPremiumFee = ethers.parseEther("10"); // 10 ETH initial premium
+            const premiumRate = ethers.parseEther("10"); // 5 ETH monthly premium rate
+
+            await policyMaker.createPolicy(
+                coverageAmount,
+                initialPremiumFee,
+                5, // Initial coverage percentage
+                premiumRate,
+                365, // Duration in days
+                5, // Penalty rate percentage
+                6, // Months grace period
+                75, // Coverage fund percentage
+                25  // Investment fund percentage
+            );
+
             // Pay initial premium
-            await policyMaker.connect(addr1).payInitialPremium(policyId, { value: ethers.parseEther("10") });
+            await policyMaker.connect(addr1).payInitialPremium(policyId, { value: initialPremiumFee });
 
-            // Check initial fund balances
-            let coverageFundBalance = await policyMaker.coverageFundBalance(policyId);
-            let investmentFundBalance = await policyMaker.investmentFundBalance(policyId);
+            // Pay premium that covers remaining coverage and contributes to investment fund
+            const additionalPremium = ethers.parseEther("30"); // Paying extra to exceed coverage
+            console.log(await policyMaker.calculatePotentialCoverage(policyId, addr1.address, additionalPremium));
+            await policyMaker.connect(addr1).payPremium(policyId, { value: additionalPremium });
 
-            expect(coverageFundBalance).to.equal(ethers.parseEther("7.5")); // 75% of 10 ETH
-            expect(investmentFundBalance).to.equal(ethers.parseEther("2.5")); // 25% of 10 ETH
+            // Retrieve updated fund balances
+            const coverageFundBalance = await policyMaker.coverageFundBalance(policyId);
+            const investmentFundBalance = await policyMaker.investmentFundBalance(policyId);
 
-            // Pay a premium that covers both the coverage amount and goes into investment
-            let extraPremiumAmount = ethers.parseEther("60");
-            await policyMaker.connect(addr1).payPremium(policyId, { value: extraPremiumAmount });
-
-            // Check updated fund balances
-            coverageFundBalance = await policyMaker.coverageFundBalance(policyId);
-            investmentFundBalance = await policyMaker.investmentFundBalance(policyId);
-
-            // Assuming the logic for splitting between coverage and investment is correct
-            // Adjust these values based on your splitting logic
-            expect(coverageFundBalance).to.equal(ethers.parseEther("57.5")); // Updated based on your logic
-            expect(investmentFundBalance).to.equal(ethers.parseEther("12.5")); // Updated based on your logic
+            // Calculate expected fund allocations
+            const remainingCoverageNeeded = coverageAmount / (initialPremiumFee); // Remaining coverage after initial premium
+            const expectedCoverageFund = remainingCoverageNeeded; // All remaining coverage goes to coverage fund
+            const expectedInvestmentFund = additionalPremium / (remainingCoverageNeeded); // Excess premium goes to investment fund
+            
+            // Assertions
+            expect(coverageFundBalance).to.equal(expectedCoverageFund);
+            expect(investmentFundBalance).to.equal(expectedInvestmentFund);
         });
     })
 });
