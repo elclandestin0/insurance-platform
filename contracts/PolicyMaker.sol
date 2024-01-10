@@ -125,10 +125,10 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     }
     
     // This function is used to check the potential coverage as the user is inputting the amount in premium
-    function calculatePotentialCoverage(uint32 _policyId, address _policyHolder, uint256 inputPremium) public view returns (uint256) {
+    function calculatePotentialCoverage(uint32 _policyId, address _policyHolder, uint256 _inputPremium) public view returns (uint256) {
         require(policies[_policyId].isActive, "Policy is not active");
         uint256 currentTotalCoverage = calculateTotalCoverage(_policyId, _policyHolder);
-        uint256 additionalCoverage = (inputPremium * calculateDynamicCoverageFactor(_policyId, _policyHolder));
+        uint256 additionalCoverage = (_inputPremium * calculateDynamicCoverageFactor(_policyId, _policyHolder, _inputPremium));
         uint256 potentialCoverage = currentTotalCoverage + additionalCoverage;
         return (potentialCoverage > policies[_policyId].coverageAmount) ? policies[_policyId].coverageAmount : potentialCoverage;
     }
@@ -136,7 +136,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     function calculateTotalCoverage(uint32 _policyId, address _policyHolder) public view returns (uint256) {
         require(policies[_policyId].isActive, "Policy is not active");
         uint256 initialCoverage = calculateInitialCoverage(_policyId);
-        uint256 additionalCoverage = calculateAdditionalCoverage(_policyId, _policyHolder);
+        uint256 additionalCoverage = calculateAdditionalCoverage(_policyId, _policyHolder, premiumsPaid[_policyId][_policyHolder]);
         uint256 totalCoverage = (initialCoverage + additionalCoverage) - amountClaimed[_policyId][_policyHolder];
         return (totalCoverage > policies[_policyId].coverageAmount) ? policies[_policyId].coverageAmount : totalCoverage;
     }
@@ -145,26 +145,31 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         return policies[_policyId].coverageAmount * policies[_policyId].initialCoveragePercentage / 100;
     }
     
-    function calculateAdditionalCoverage(uint32 _policyId, address _policyHolder) internal view returns (uint256) {
-        uint256 totalPremiumsPaid = premiumsPaid[_policyId][_policyHolder];
-        uint256 coverageFactor = calculateDynamicCoverageFactor(_policyId, _policyHolder);
-        if (totalPremiumsPaid <= policies[_policyId].initialPremiumFee) {
+    function calculateAdditionalCoverage(uint32 _policyId, address _policyHolder, uint256 _inputPremium) internal view returns (uint256) {
+        uint256 coverageFactor = calculateDynamicCoverageFactor(_policyId, _policyHolder, _inputPremium);
+        if (_inputPremium <= policies[_policyId].initialPremiumFee) {
             return 0;
         }
-        return (totalPremiumsPaid - policies[_policyId].initialPremiumFee) * coverageFactor;
+        return (_inputPremium - policies[_policyId].initialPremiumFee) * coverageFactor;
     }
- 
-    function calculateDynamicCoverageFactor(uint32 _policyId, address _policyHolder) public view returns (uint256) {
+
+    function calculateDynamicCoverageFactor(uint32 _policyId, address _policyHolder, uint256 inputPremium) public view returns (uint256) {
         Policy memory policy = policies[_policyId];
-        // The actual calculation would depend on how these variables are intended to influence the factor
-        uint256 factor = 1.0 + calculateTimeBasedIncrease(block.timestamp - policy.startTime);
-        return factor;
+        uint256 timeFactor = 1.0 + calculateTimeBasedIncrease(block.timestamp - policy.startTime);
+        uint256 premiumSizeFactor = calculatePremiumSizeFactor(_policyId, inputPremium);
+        return timeFactor * premiumSizeFactor;
     }
 
     function calculateTimeBasedIncrease(uint256 timeSinceStart) internal pure returns (uint256) {
         uint256 monthsElapsed = timeSinceStart / 30 days;
         uint256 factorIncrease = monthsElapsed * 10 * 100;
         return factorIncrease / 100;
+    }
+
+    function calculatePremiumSizeFactor(uint32 _policyId, uint256 inputPremium) internal view returns (uint256) {
+        uint256 coverageAmount = policies[_policyId].coverageAmount;
+        uint256 factor = (inputPremium * 100) / coverageAmount; // Simple ratio of premium to total coverage
+        return factor / 100; // Adjusting back to a reasonable scale
     }
 
     function handlePayout(uint32 policyId, uint256 claimAmount) public nonReentrant {

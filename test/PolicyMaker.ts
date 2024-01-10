@@ -219,7 +219,7 @@ describe("PolicyMaker", function () {
             const policyId = ethers.parseUnits('1', 0);
             const coverageAmount = ethers.parseUnits('100', 0);
             const initialPremiumFee = ethers.parseEther('20');
-            const premiumRate = ethers.parseEther('1');
+            const premiumRate = ethers.parseEther('5');
             const duration = ethers.parseUnits('365', 0);
             const penaltyRate = ethers.parseUnits('20', 0);
             const monthsGracePeriod = ethers.parseUnits('6', 0);
@@ -230,13 +230,12 @@ describe("PolicyMaker", function () {
             // Create a policy
             await policyMaker.createPolicy(coverageAmount, initialPremiumFee, initialCoveragePercentage, premiumRate, duration, penaltyRate, monthsGracePeriod, coverageFundPercentage, investmentFundPercentage);
             await policyMaker.connect(addr1).payInitialPremium(policyId, {value: ethers.parseEther("20")});
-            
             const claimAmount = await policyMaker.connect(addr1).calculateTotalCoverage(policyId, await addr1.getAddress());
 
             // Ensure the policy is active and addr1Signer is the policy owner before proceeding with the claim
             expect(await policyMaker.isActive(policyId)).to.be.true;
             expect(await policyMaker.isPolicyOwner(policyId, addr1.address)).to.be.true;
-
+            
             // Process the claim
             await policyMaker.connect(addr1).handlePayout(policyId,  claimAmount);
 
@@ -247,6 +246,7 @@ describe("PolicyMaker", function () {
             const addr1BalanceBefore = await ethers.provider.getBalance(addr1.address);
             const addr1BalanceAfter = await ethers.provider.getBalance(addr1.address);
             expect(addr1BalanceAfter).to.equal(addr1BalanceBefore + claimAmount);
+            
         });
     })
 });
