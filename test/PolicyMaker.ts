@@ -231,7 +231,9 @@ describe("PolicyMaker", function () {
             await policyMaker.createPolicy(coverageAmount, initialPremiumFee, initialCoveragePercentage, premiumRate, duration, penaltyRate, monthsGracePeriod, coverageFundPercentage, investmentFundPercentage);
             await policyMaker.connect(addr1).payInitialPremium(policyId, {value: ethers.parseEther("20")});
             const claimAmount = await policyMaker.connect(addr1).calculateTotalCoverage(policyId, await addr1.getAddress());
-
+            // To do logarithmic
+            
+            
             // Ensure the policy is active and addr1Signer is the policy owner before proceeding with the claim
             expect(await policyMaker.isActive(policyId)).to.be.true;
             expect(await policyMaker.isPolicyOwner(policyId, addr1.address)).to.be.true;

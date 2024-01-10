@@ -135,13 +135,14 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
 
     function calculateTotalCoverage(uint32 _policyId, address _policyHolder) public view returns (uint256) {
         require(policies[_policyId].isActive, "Policy is not active");
-        uint256 initialCoverage = calculateInitialCoverage(_policyId);
-        uint256 additionalCoverage = calculateAdditionalCoverage(_policyId, _policyHolder, premiumsPaid[_policyId][_policyHolder]);
+        uint256 initialCoverage = !isPolicyOwner(_policyId, _policyHolder) ? calculateInitialCoverage(_policyId) : 0.0;
+        uint256 additionalCoverage = !isPolicyOwner(_policyId, _policyHolder) ? 0.0 : calculateAdditionalCoverage(_policyId, _policyHolder, premiumsPaid[_policyId][_policyHolder]);
         uint256 totalCoverage = (initialCoverage + additionalCoverage) - amountClaimed[_policyId][_policyHolder];
         return (totalCoverage > policies[_policyId].coverageAmount) ? policies[_policyId].coverageAmount : totalCoverage;
     }
 
     function calculateInitialCoverage(uint32 _policyId) internal view returns (uint256) {
+        require(!isPolicyOwner(_policyId, msg.sender), "Policy owner");
         return policies[_policyId].coverageAmount * policies[_policyId].initialCoveragePercentage / 100;
     }
     
@@ -168,9 +169,31 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
 
     function calculatePremiumSizeFactor(uint32 _policyId, uint256 inputPremium) internal view returns (uint256) {
         uint256 coverageAmount = policies[_policyId].coverageAmount;
-        uint256 factor = (inputPremium * 100) / coverageAmount; // Simple ratio of premium to total coverage
+
+        // Ensure inputPremium doesn't exceed coverageAmount
+        if (inputPremium > coverageAmount) {
+            inputPremium = coverageAmount;
+        }
+
+        // Calculate the ratio of inputPremium to coverageAmount
+        uint256 premiumRatio = (inputPremium * 100) / coverageAmount;
+
+        // Use the log10 function for a logarithmic scale
+        uint256 factor = log10(premiumRatio + 10) * 100; // "+10" to avoid log10(0)
+
         return factor / 100; // Adjusting back to a reasonable scale
     }
+    
+    // Helper function to calculate the base-10 logarithm
+    function log10(uint256 x) internal pure returns (uint256) {
+        uint256 result = 0;
+        while (x >= 10) {
+            x /= 10;
+            result++;
+        }
+        return result;
+    }
+
 
     function handlePayout(uint32 policyId, uint256 claimAmount) public nonReentrant {
         require(policies[policyId].isActive, "Policy is not active");
