@@ -7,6 +7,7 @@ describe("PolicyMaker", function () {
     let policyMaker: PolicyMaker;
     let payout: Payout;
     let owner: Signer, addr1: Signer;
+    let policyId: any;
 
     // Deploying the PolicyMaker contract before each test
     beforeEach(async function () {
@@ -18,6 +19,18 @@ describe("PolicyMaker", function () {
         await policyMaker.waitForDeployment();
         await payout.waitForDeployment();
         await policyMaker.setPayoutContract(await payout.getAddress());
+        policyId = 1;
+        await policyMaker.createPolicy(
+            ethers.parseEther("100"),
+            ethers.parseEther("10"),
+            50,
+            ethers.parseEther("5"),
+            365,
+            20,
+            6,
+            75,
+            25
+        );
     });
 
     describe("Policy Creation", function () {
@@ -232,14 +245,14 @@ describe("PolicyMaker", function () {
             await policyMaker.connect(addr1).payInitialPremium(policyId, {value: ethers.parseEther("20")});
             const claimAmount = await policyMaker.connect(addr1).calculateTotalCoverage(policyId, await addr1.getAddress());
             // To do logarithmic
-            
-            
+
+
             // Ensure the policy is active and addr1Signer is the policy owner before proceeding with the claim
             expect(await policyMaker.isActive(policyId)).to.be.true;
             expect(await policyMaker.isPolicyOwner(policyId, addr1.address)).to.be.true;
-            
+
             // Process the claim
-            await policyMaker.connect(addr1).handlePayout(policyId,  claimAmount);
+            await policyMaker.connect(addr1).handlePayout(policyId, claimAmount);
 
             // The payout amount should be equal to the claim amount since it's less than the total coverage
             const coverageFundBalanceBefore = await policyMaker.coverageFundBalance(policyId);
@@ -263,7 +276,7 @@ describe("PolicyMaker", function () {
 
             // Create a policy
             await policyMaker.createPolicy(coverageAmount, initialPremiumFee, initialCoveragePercentage, premiumRate, duration, penaltyRate, monthsGracePeriod, coverageFundPercentage, investmentFundPercentage);
-            
+
             // Test various premium amounts to check the premium size factor
             const testPremiums = [
                 ethers.parseEther('1'), // 1% of coverageAmount
@@ -274,7 +287,7 @@ describe("PolicyMaker", function () {
                 ethers.parseEther('75'), // 75% of coverageAmount
                 ethers.parseEther('100') // 100% of coverageAmount
             ];
-    
+
             for (let i = 0; i < testPremiums.length; i++) {
                 const premium = testPremiums[i];
                 const premiumSizeFactor = await policyMaker.calculatePremiumSizeFactor(policyId, premium);
@@ -284,6 +297,30 @@ describe("PolicyMaker", function () {
                 // expect(premiumSizeFactor).to.be.at.least(0);
                 // expect(premiumSizeFactor).to.be.below(2); // Assuming the maximum factor is less than 2
             }
+        });
+        it.only("Should handle premiums correctly for coverage and investment funds", async function () {
+            // Pay initial premium
+            await policyMaker.connect(addr1).payInitialPremium(policyId, { value: ethers.parseEther("10") });
+
+            // Check initial fund balances
+            let coverageFundBalance = await policyMaker.coverageFundBalance(policyId);
+            let investmentFundBalance = await policyMaker.investmentFundBalance(policyId);
+
+            expect(coverageFundBalance).to.equal(ethers.parseEther("7.5")); // 75% of 10 ETH
+            expect(investmentFundBalance).to.equal(ethers.parseEther("2.5")); // 25% of 10 ETH
+
+            // Pay a premium that covers both the coverage amount and goes into investment
+            let extraPremiumAmount = ethers.parseEther("60");
+            await policyMaker.connect(addr1).payPremium(policyId, { value: extraPremiumAmount });
+
+            // Check updated fund balances
+            coverageFundBalance = await policyMaker.coverageFundBalance(policyId);
+            investmentFundBalance = await policyMaker.investmentFundBalance(policyId);
+
+            // Assuming the logic for splitting between coverage and investment is correct
+            // Adjust these values based on your splitting logic
+            expect(coverageFundBalance).to.equal(ethers.parseEther("57.5")); // Updated based on your logic
+            expect(investmentFundBalance).to.equal(ethers.parseEther("12.5")); // Updated based on your logic
         });
     })
 });

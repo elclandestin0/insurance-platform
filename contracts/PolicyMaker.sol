@@ -24,6 +24,8 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     mapping(uint32 => Policy) public policies;
     mapping(uint32 => mapping(address => bool)) public policyOwners;
     mapping(uint32 => mapping(address => uint256)) public premiumsPaid;
+    mapping(uint32 => mapping(address => uint256)) public coverageFunded;
+    mapping(uint32 => mapping(address => uint256)) public investmentFunded;
     mapping(uint32 => mapping(address => uint32)) public timesPaid;
     mapping(uint32 => mapping(address => uint256)) public lastPremiumPaidTime;
     mapping(uint32 => mapping(address => uint256)) public amountClaimed;
@@ -150,34 +152,89 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         emit PremiumPaid(_policyId, msg.sender, msg.value, true);
     }
 
+//    function payPremium(uint32 _policyId) public payable {
+//        require(
+//            isPolicyOwner(_policyId, msg.sender),
+//            "Not a claimant of this policy"
+//        );
+//        require(
+//            policies[_policyId].isActive,
+//            "Policy does not exist or is not active"
+//        );
+//        require(
+//            msg.value >= calculatePremium(_policyId, msg.sender),
+//            "Insufficient premium amount"
+//        );
+//
+//        // Store premiums paid for the account
+//        premiumsPaid[_policyId][msg.sender] += msg.value;
+//        timesPaid[_policyId][msg.sender] += 1;
+//        lastPremiumPaidTime[_policyId][msg.sender] = block.timestamp;
+//
+//        // Calculate coverage and investment amount to add them to the fund
+//        coverageFundBalance[_policyId] +=
+//            (msg.value * policies[_policyId].coverageFundPercentage) /
+//            100;
+//        investmentFundBalance[_policyId] +=
+//            (msg.value * policies[_policyId].investmentFundPercentage) /
+//            100;
+//        emit PremiumPaid(_policyId, msg.sender, msg.value, false);
+//    }
+
+    // Function to handle premium payment and allocate funds to coverage and investment
     function payPremium(uint32 _policyId) public payable {
-        require(
-            isPolicyOwner(_policyId, msg.sender),
-            "Not a claimant of this policy"
-        );
-        require(
-            policies[_policyId].isActive,
-            "Policy does not exist or is not active"
-        );
-        require(
-            msg.value >= calculatePremium(_policyId, msg.sender),
-            "Insufficient premium amount"
-        );
+        require(isPolicyOwner(_policyId, msg.sender), "Not a policy owner");
+        require(policies[_policyId].isActive, "Policy is not active");
 
-        // Store premiums paid for the account
+        // Calculate the remaining coverage needed
+        uint256 remainingCoverageNeeded = policies[_policyId].coverageAmount > calculateTotalCoverage(_policyId, msg.sender)
+            ? policies[_policyId].coverageAmount - calculateTotalCoverage(_policyId, msg.sender)
+            : 0;
+
+        // Calculate the amount to be allocated to the coverage fund
+        uint256 premiumForCoverageFund = (remainingCoverageNeeded > 0)
+            ? calculatePremiumForCoverageFund(_policyId, msg.value, remainingCoverageNeeded)
+            : 0;
+        
+        // Update fund balances
+        coverageFundBalance[_policyId] += premiumForCoverageFund;
+        coverageFunded[_policyId][msg.sender] += premiumForCoverageFund;
+        investmentFunded[_policyId][msg.sender] += (msg.value > premiumForCoverageFund) ? msg.value - premiumForCoverageFund : 0;
+        investmentFundBalance[_policyId] += (msg.value > premiumForCoverageFund) ? msg.value - premiumForCoverageFund : 0;
+        
+        // Record the premiums paid
         premiumsPaid[_policyId][msg.sender] += msg.value;
-        timesPaid[_policyId][msg.sender] += 1;
-        lastPremiumPaidTime[_policyId][msg.sender] = block.timestamp;
-
-        // Calculate coverage and investment amount to add them to the fund
-        coverageFundBalance[_policyId] +=
-            (msg.value * policies[_policyId].coverageFundPercentage) /
-            100;
-        investmentFundBalance[_policyId] +=
-            (msg.value * policies[_policyId].investmentFundPercentage) /
-            100;
         emit PremiumPaid(_policyId, msg.sender, msg.value, false);
     }
+
+
+    // Helper function to calculate how much of the premium should go to the coverage fund
+    function calculatePremiumForCoverageFund(uint32 _policyId, uint256 premium, uint256 remainingCoverageNeeded) internal view returns (uint256) {
+        uint256 coverageAmount = policies[_policyId].coverageAmount;
+
+        if (premium > coverageAmount || premium == 0) {
+            return 0;
+        }
+
+        uint256 ratio = (premium * 100) / coverageAmount;
+        uint256 multiplier;
+
+        if (ratio < 10) {
+            multiplier = 1;
+        } else if (ratio < 25) {
+            multiplier = 2;
+        } else if (ratio < 50) {
+            multiplier = 3;
+        } else if (ratio < 75) {
+            multiplier = 4;
+        } else {
+            multiplier = 5;
+        }
+
+        uint256 effectivePremium = premium * multiplier;
+        return effectivePremium > remainingCoverageNeeded ? remainingCoverageNeeded : effectivePremium;
+    }
+
 
     function calculatePremium(
         uint32 _policyId,
@@ -191,7 +248,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         );
 
         uint256 timeElapsed = block.timestamp -
-            lastPremiumPaidTime[_policyId][_policyHolder];
+                            lastPremiumPaidTime[_policyId][_policyHolder];
         uint256 daysElapsed = timeElapsed / 60 / 60 / 24;
 
         uint256 dailyRate = policies[_policyId].premiumRate / 30;
@@ -205,7 +262,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         if (monthsElapsed > policies[_policyId].monthsGracePeriod) {
             uint256 penaltyRate = policies[_policyId].penaltyRate; // 5% increase per month
             uint256 penaltyMonths = monthsElapsed -
-                policies[_policyId].monthsGracePeriod;
+                                policies[_policyId].monthsGracePeriod;
             premium += (premium * penaltyRate * penaltyMonths) / 100;
         }
         return premium;
@@ -247,7 +304,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
             premiumsPaid[_policyId][_policyHolder]
         );
         uint256 totalCoverage = (initialCoverage + additionalCoverage) -
-            amountClaimed[_policyId][_policyHolder];
+                            amountClaimed[_policyId][_policyHolder];
         return
             (totalCoverage > policies[_policyId].coverageAmount)
                 ? policies[_policyId].coverageAmount
@@ -288,7 +345,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     ) public view returns (uint256) {
         Policy memory policy = policies[_policyId];
         uint256 timeFactor = 1.0 +
-            calculateTimeBasedIncrease(block.timestamp - policy.startTime);
+                        calculateTimeBasedIncrease(block.timestamp - policy.startTime);
 
         // Calculate the premiumSizeFactor with a guard against zero
         uint256 premiumSizeFactor = calculatePremiumSizeFactor(
@@ -310,40 +367,33 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         return factorIncrease / 100;
     }
 
-    function calculatePremiumSizeFactor(
-        uint32 policyId,
-        uint256 inputPremium
-    ) public view returns (uint256) {
-        // Ensure inputPremium doesn't exceed 80% of totalCoverageAmount
+    function calculatePremiumSizeFactor(uint32 _policyId, uint256 inputPremium) public view returns (uint256) {
+        uint256 coverageAmount = policies[_policyId].coverageAmount;
 
-        uint256 maxPremium = (policies[policyId].coverageAmount * 80) / 100;
-        if (inputPremium > maxPremium) {
-            inputPremium = maxPremium;
+        if (inputPremium > coverageAmount || inputPremium == 0) {
+            return 0;
         }
 
-        // Calculate the ratio of inputPremium to maxPremium
-        uint256 ratio = (inputPremium * 100) / maxPremium;
+        uint256 ratio = (inputPremium * 100) / coverageAmount;
 
-        // Approximate the logarithmic scale using a loop to simulate log10
-        uint256 factor = 0;
-        while (ratio >= 10) {
-            ratio /= 10;
-            factor += 1;
+        if (ratio < 10) {
+            return 1;
+        } else if (ratio < 50) {
+            return 2;
+        } else if (ratio < 50) {
+            return 2;
+        } else if (ratio < 75) { 
+            return 3;
+        } else {
+            return 3;
         }
-
-        // Adjusting the factor to fit the desired output range
-        uint256 maxFactor = 100; // This represents full coverage on the logarithmic scale
-        factor = (factor * maxFactor) / log10(maxPremium);
-
-        return factor;
     }
 
-    // Helper function to calculate the base-10 logarithm
     function log10(uint256 x) internal pure returns (uint256) {
         uint256 result = 0;
         while (x >= 10) {
             x /= 10;
-            result += 1;
+            result++;
         }
         return result;
     }
@@ -364,7 +414,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         );
 
         uint256 payoutAmount = claimAmount >
-            calculateTotalCoverage(policyId, msg.sender)
+        calculateTotalCoverage(policyId, msg.sender)
             ? calculateTotalCoverage(policyId, msg.sender)
             : claimAmount;
         // Update the coverage fund balance
