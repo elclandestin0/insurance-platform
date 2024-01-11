@@ -151,7 +151,6 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
             100;
         coverageFunded[_policyId][msg.sender] += (msg.value * policies[_policyId].investmentFundPercentage) / 100;
         investmentFunded[_policyId][msg.sender] += (msg.value * policies[_policyId].investmentFundPercentage) / 100;
-        console.log(calculateTotalCoverage(_policyId, msg.sender));
         emit PremiumPaid(_policyId, msg.sender, msg.value, true);
     }
 
@@ -161,28 +160,21 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         require(calculateTotalCoverage(_policyId, msg.sender) < policies[_policyId].coverageAmount, "Full coverage achieved, use payCustomPremium");
 
         uint256 currentTotalCoverage = calculateTotalCoverage(_policyId, msg.sender);
-        console.log(currentTotalCoverage);
         uint256 maxCoverage = policies[_policyId].coverageAmount;
         uint256 remainingCoverageNeeded = (maxCoverage > currentTotalCoverage) ? (maxCoverage - currentTotalCoverage) : 0;
-        console.log(remainingCoverageNeeded);
         uint256 premiumForCoverageFund;
         uint256 premiumForInvestmentFund;
-        console.log(msg.value);
-        console.log(calculatePotentialCoverage(_policyId, msg.sender, msg.value));
-        if (calculatePotentialCoverage(_policyId, msg.sender, msg.value) > remainingCoverageNeeded) {
-            premiumForCoverageFund = calculatePremiumForCoverageFund(_policyId, msg.value, remainingCoverageNeeded);
-            premiumForInvestmentFund = msg.value - premiumForCoverageFund > 0 ? msg.value - premiumForCoverageFund : 0; // No overflow here since premiumForCoverageFund <= msg.value
-            console.log(premiumForCoverageFund);
-        } else {
-            // Regular premium split based on policy's fund percentages
-            premiumForCoverageFund = (msg.value * policies[_policyId].coverageFundPercentage) / 100;
-            premiumForInvestmentFund = msg.value - premiumForCoverageFund; // No overflow since premiumForCoverageFund <= msg.value
-        }
-
+        
+        // Regular premium split based on policy's fund percentages
+        premiumForCoverageFund = (msg.value * policies[_policyId].coverageFundPercentage) / 100;
+        premiumForInvestmentFund = msg.value - premiumForCoverageFund; // No overflow since premiumForCoverageFund <= msg.value
+        
         // Safely update fund balances
         coverageFundBalance[_policyId] += premiumForCoverageFund; // Safe add
         investmentFundBalance[_policyId] += premiumForInvestmentFund; // Safe add
-
+        console.log(coverageFundBalance[_policyId]);
+        console.log(investmentFundBalance[_policyId]);
+        
         // Record the premiums paid and fund contributions
         premiumsPaid[_policyId][msg.sender] += msg.value; // Safe add
         coverageFunded[_policyId][msg.sender] += premiumForCoverageFund; // Safe add
@@ -190,8 +182,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
 
         emit PremiumPaid(_policyId, msg.sender, msg.value, false);
     }
-
-
+    
 
     function payCustomPremium(uint32 _policyId, uint256 investmentFundPercentage) public payable {
         require(isPolicyOwner(_policyId, msg.sender), "Not a policy owner");
@@ -315,10 +306,16 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         );
         uint256 totalCoverage = (initialCoverage + additionalCoverage) -
                             amountClaimed[_policyId][_policyHolder];
+        
+        uint256 bonusCoverage = calculateAdditionalCoverage(
+            _policyId,
+            _policyHolder,
+            coverageFunded[_policyId][_policyHolder]
+        );
         return
             (totalCoverage > policies[_policyId].coverageAmount)
-                ? policies[_policyId].coverageAmount
-                : totalCoverage;
+                ? policies[_policyId].coverageAmount + bonusCoverage
+                : totalCoverage + additionalCoverage;
     }
 
     function calculateInitialCoverage(
@@ -328,7 +325,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
             (policies[_policyId].coverageAmount *
                 policies[_policyId].initialCoveragePercentage) / 100;
     }
-
+    
     function calculateAdditionalCoverage(
         uint32 _policyId,
         address _policyHolder,
