@@ -320,8 +320,9 @@ describe("PolicyMaker", function () {
             await policyMaker.connect(addr1).payInitialPremium(policyId, { value: initialPremiumFee });
 
             // Pay premium that covers remaining coverage and contributes to investment fund
-            const additionalPremium = ethers.parseEther("30"); // Paying extra to exceed coverage
-            console.log(await policyMaker.calculatePotentialCoverage(policyId, addr1.address, additionalPremium));
+            const additionalPremium = ethers.parseEther("80"); // Paying extra to exceed coverage
+            await policyMaker.connect(addr1).payPremium(policyId, { value: additionalPremium });
+
             await policyMaker.connect(addr1).payPremium(policyId, { value: additionalPremium });
 
             // Retrieve updated fund balances
@@ -332,6 +333,8 @@ describe("PolicyMaker", function () {
             const remainingCoverageNeeded = coverageAmount / (initialPremiumFee); // Remaining coverage after initial premium
             const expectedCoverageFund = remainingCoverageNeeded; // All remaining coverage goes to coverage fund
             const expectedInvestmentFund = additionalPremium / (remainingCoverageNeeded); // Excess premium goes to investment fund
+            console.log(coverageFundBalance);
+            console.log(investmentFundBalance);
             
             // Assertions
             expect(coverageFundBalance).to.equal(expectedCoverageFund);

@@ -149,12 +149,15 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         investmentFundBalance[_policyId] +=
             (msg.value * policies[_policyId].investmentFundPercentage) /
             100;
+        coverageFunded[_policyId] += (msg.value * policies[_policyId].investmentFundPercentage) / 100;
+        investmentFunded[_policyId][msg.sender] += (msg.value * policies[_policyId].investmentFundPercentage) / 100;
         emit PremiumPaid(_policyId, msg.sender, msg.value, true);
     }
 
     function payPremium(uint32 _policyId) public payable {
         require(isPolicyOwner(_policyId, msg.sender), "Not a policy owner");
         require(policies[_policyId].isActive, "Policy is not active");
+        require(calculateTotalCoverage(_policyId, msg.sender) < policies[_policyId].coverageAmount, "Full coverage achieved, use payCustomPremium");
 
         // Calculate the remaining coverage needed
         uint256 currentTotalCoverage = calculateTotalCoverage(_policyId, msg.sender);
@@ -162,15 +165,17 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         uint256 remainingCoverageNeeded = (maxCoverage > currentTotalCoverage)
             ? maxCoverage - currentTotalCoverage
             : 0;
-
+        console.log("remaining coverage ", remainingCoverageNeeded);
         // Determine the premium allocation
         uint256 premiumForCoverageFund;
         uint256 premiumForInvestmentFund;
 
-        if (remainingCoverageNeeded > 0 && msg.value >= remainingCoverageNeeded) {
+        if (calculatePotentialCoverage(_policyId, msg.sender, msg.value) > remainingCoverageNeeded) {
             // If premium covers or exceeds the remaining coverage needed
             premiumForCoverageFund = remainingCoverageNeeded;
+            console.log("premium amount for coverage fund: ", premiumForCoverageFund);
             premiumForInvestmentFund = msg.value - remainingCoverageNeeded;
+            console.log("premium amount for investment fund: ", premiumForInvestmentFund);
         } else {
             // If premium does not cover the entire remaining coverage
             premiumForCoverageFund = (msg.value * policies[_policyId].coverageFundPercentage) / 100;
@@ -179,17 +184,43 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
 
         // Ensure premiumForInvestmentFund is not negative
         premiumForInvestmentFund = (premiumForInvestmentFund > msg.value) ? 0 : premiumForInvestmentFund;
-        
-        console.log(premiumForCoverageFund);
-        console.log(premiumForInvestmentFund);
+
         // Update fund balances
         coverageFundBalance[_policyId] += premiumForCoverageFund;
+        coverageFunded[_policyId][msg.sender] += premiumForCoverageFund;
         investmentFundBalance[_policyId] += premiumForInvestmentFund;
+        investmentFunded[_policyId][msg.sender] += premiumForInvestmentFund;
 
         // Record the premiums paid
         premiumsPaid[_policyId][msg.sender] += msg.value;
         emit PremiumPaid(_policyId, msg.sender, msg.value, false);
     }
+
+    function payCustomPremium(uint32 _policyId, uint256 investmentFundPercentage) public payable {
+        require(isPolicyOwner(_policyId, msg.sender), "Not a policy owner");
+        require(policies[_policyId].isActive, "Policy is not active");
+        require(investmentFundPercentage <= 100, "Invalid percentage value");
+        require(calculateTotalCoverage(_policyId, msg.sender) >= policies[_policyId].coverageAmount, "Coverage is not yet complete");
+
+        // Calculate the allocation of the premium based on the specified percentages
+        uint256 premiumForInvestmentFund = (msg.value * investmentFundPercentage) / 100;
+        uint256 premiumForCoverageFund = msg.value - premiumForInvestmentFund;
+
+        // Ensure premium allocation does not exceed the paid amount
+        premiumForInvestmentFund = (premiumForInvestmentFund > msg.value) ? msg.value : premiumForInvestmentFund;
+        premiumForCoverageFund = (premiumForCoverageFund > msg.value) ? 0 : premiumForCoverageFund;
+
+        // Update fund balances
+        coverageFundBalance[_policyId] += premiumForCoverageFund;
+        coverageFunded[_policyId][msg.sender] += premiumForCoverageFund;
+        investmentFundBalance[_policyId] += premiumForInvestmentFund;
+        investmentFunded[_policyId][msg.sender] += premiumForInvestmentFund;
+
+        // Record the premiums paid
+        premiumsPaid[_policyId][msg.sender] += msg.value;
+        emit PremiumPaid(_policyId, msg.sender, msg.value, false);
+    }
+
 
     // Helper function to calculate how much of the premium should go to the coverage fund
     function calculatePremiumForCoverageFund(uint32 _policyId, uint256 premium, uint256 remainingCoverageNeeded) internal view returns (uint256) {
