@@ -6,6 +6,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "hardhat/console.sol";
 
 contract PolicyMaker is Ownable, ReentrancyGuard {
+    
     struct Policy {
         uint256 coverageAmount;
         uint256 initialPremiumFee;
@@ -172,8 +173,6 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         // Safely update fund balances
         coverageFundBalance[_policyId] += premiumForCoverageFund; // Safe add
         investmentFundBalance[_policyId] += premiumForInvestmentFund; // Safe add
-        console.log(coverageFundBalance[_policyId]);
-        console.log(investmentFundBalance[_policyId]);
         
         // Record the premiums paid and fund contributions
         premiumsPaid[_policyId][msg.sender] += msg.value; // Safe add
@@ -234,6 +233,13 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
 
         uint256 effectivePremium = premium * multiplier;
         return effectivePremium > remainingCoverageNeeded ? remainingCoverageNeeded : effectivePremium;
+    }
+
+    function calculatePremiumAllocation(uint32 _policyId, uint256 _premiumAmount) public view returns (uint256 premiumForCoverageFund, uint256 premiumForInvestmentFund) {
+        Policy storage policy = policies[_policyId];
+        uint256 premiumForCoverageFund = (_premiumAmount * policies[_policyId].coverageFundPercentage) / 100;
+        uint256 premiumForInvestmentFund = (_premiumAmount * policies[_policyId].investmentFundPercentage) / 100;
+        return (premiumForCoverageFund, premiumForInvestmentFund);
     }
 
 
