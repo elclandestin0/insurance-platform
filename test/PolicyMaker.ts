@@ -298,7 +298,7 @@ describe("PolicyMaker", function () {
                 // expect(premiumSizeFactor).to.be.below(2); // Assuming the maximum factor is less than 2
             }
         });
-        it.only("should correctly allocate premium to coverage and investment funds", async function () {
+        it("should correctly allocate premium to coverage and investment funds", async function () {
             // Create policy
             const coverageAmount = ethers.parseEther("100"); // 100 ETH coverage amount
             const initialPremiumFee = ethers.parseEther("10"); // 10 ETH initial premium
@@ -340,5 +340,37 @@ describe("PolicyMaker", function () {
             expect(coverageFundBalance).to.equal(expectedCoverageFund);
             expect(investmentFundBalance).to.equal(expectedInvestmentFund);
         });
+        it.only("Should split funds between coverage and investment correctly", async function () {
+            const amountOne = ethers.parseEther('10');
+            const amountTwo = ethers.parseEther('10');
+            await policyMaker.connect(addr1).payInitialPremium(policyId, { value: amountOne });
+            // Pay a partial coverage premium
+            await policyMaker.connect(addr1).payPremium(policyId, { value: amountTwo });
+            const coverageFund = await policyMaker.coverageFundBalance(policyId);
+            const investmentFund = await policyMaker.investmentFundBalance(policyId);
+            console.log(coverageFund);
+            console.log(investmentFund);
+            // Verify fund allocations
+            expect(coverageFund).to.equal(ethers.parseEther('15')); // 75% of 5 ETH
+            expect(investmentFund).to.equal(ethers.parseEther('5')); // 25% of 5 ETH
+        });
+        it("Should allocate custom premium correctly", async function () {
+            await policyMaker.connect(addr1).payInitialPremium(policyId, { value: ethers.parseEther('10') });
+
+            // Ensure full coverage is achieved
+            await policyMaker.connect(addr1).payPremium(policyId, { value: ethers.parseEther('90') });
+
+            // Pay a custom premium
+            await policyMaker.connect(addr1).payCustomPremium(policyId, 50, { value: ethers.parseEther('10') });
+
+            // Verify fund allocations
+            const coverageFund = await policyMaker.coverageFundBalance(policyId);
+            const investmentFund = await policyMaker.investmentFundBalance(policyId);
+            console.log(coverageFund);
+            console.log(investmentFund);
+            expect(coverageFund).to.equal(ethers.parseEther('100')); // Max coverage amount
+            expect(investmentFund).to.be.above(ethers.parseEther('10')); // Increased by 5 ETH from custom premium
+        });
+
     })
 });
