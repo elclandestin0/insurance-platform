@@ -317,13 +317,13 @@ describe("PolicyMaker", function () {
             );
 
             // Pay initial premium
-            await policyMaker.connect(addr1).payInitialPremium(policyId, { value: initialPremiumFee });
+            await policyMaker.connect(addr1).payInitialPremium(policyId, {value: initialPremiumFee});
 
             // Pay premium that covers remaining coverage and contributes to investment fund
             const additionalPremium = ethers.parseEther("80"); // Paying extra to exceed coverage
-            await policyMaker.connect(addr1).payPremium(policyId, { value: additionalPremium });
+            await policyMaker.connect(addr1).payPremium(policyId, {value: additionalPremium});
 
-            await policyMaker.connect(addr1).payPremium(policyId, { value: additionalPremium });
+            await policyMaker.connect(addr1).payPremium(policyId, {value: additionalPremium});
 
             // Retrieve updated fund balances
             const coverageFundBalance = await policyMaker.coverageFundBalance(policyId);
@@ -335,17 +335,17 @@ describe("PolicyMaker", function () {
             const expectedInvestmentFund = additionalPremium / (remainingCoverageNeeded); // Excess premium goes to investment fund
             console.log(coverageFundBalance);
             console.log(investmentFundBalance);
-            
+
             // Assertions
             expect(coverageFundBalance).to.equal(expectedCoverageFund);
             expect(investmentFundBalance).to.equal(expectedInvestmentFund);
         });
         it("Should split funds between coverage and investment correctly", async function () {
             const amountOne = ethers.parseEther('10');
-            await policyMaker.connect(addr1).payInitialPremium(policyId, { value: amountOne });
+            await policyMaker.connect(addr1).payInitialPremium(policyId, {value: amountOne});
             // Pay a partial coverage premium
-            await policyMaker.connect(addr1).payPremium(policyId, { value: amountOne });
-            
+            await policyMaker.connect(addr1).payPremium(policyId, {value: amountOne});
+
             const coverageFund = await policyMaker.coverageFundBalance(policyId);
             const investmentFund = await policyMaker.investmentFundBalance(policyId);
             // Verify fund allocations
@@ -353,24 +353,45 @@ describe("PolicyMaker", function () {
             expect(investmentFund).to.equal(ethers.parseEther('5')); // 25% of 5 ETH
         });
         it("Should allocate custom premium correctly", async function () {
-            await policyMaker.connect(addr1).payInitialPremium(policyId, { value: ethers.parseEther('10') });
-            await policyMaker.connect(addr1).payPremium(policyId, { value: ethers.parseEther('90') });
-            await policyMaker.connect(addr1).payCustomPremium(policyId, 50, { value: ethers.parseEther('10') });
+            await policyMaker.connect(addr1).payInitialPremium(policyId, {value: ethers.parseEther('10')});
+            await policyMaker.connect(addr1).payPremium(policyId, {value: ethers.parseEther('90')});
+            await policyMaker.connect(addr1).payCustomPremium(policyId, 50, {value: ethers.parseEther('10')});
             // Verify fund allocations
             const coverageFund = await policyMaker.coverageFundBalance(policyId);
             const investmentFund = await policyMaker.investmentFundBalance(policyId);
             expect(coverageFund).to.equal(ethers.parseEther('75')); // Max coverage amount
             expect(investmentFund).to.equal(ethers.parseEther('30')); // Increased by 5 ETH from custom premium
         });
-        it.only("Should calculate correct coverage amount", async function () {
-            await policyMaker.connect(addr1).payInitialPremium(policyId, { value: ethers.parseEther('10') });
-            await policyMaker.connect(addr1).payPremium(policyId, { value: ethers.parseEther('90') });
-            await policyMaker.connect(addr1).payCustomPremium(policyId, 50, { value: ethers.parseEther('10') });
+        it("Should calculate correct coverage amount", async function () {
+            await policyMaker.connect(addr1).payInitialPremium(policyId, {value: ethers.parseEther('10')});
+            await policyMaker.connect(addr1).payPremium(policyId, {value: ethers.parseEther('90')});
+            await policyMaker.connect(addr1).payCustomPremium(policyId, 50, {value: ethers.parseEther('10')});
             const coverageFund = await policyMaker.coverageFundBalance(policyId);
             const investmentFund = await policyMaker.investmentFundBalance(policyId);
             expect(coverageFund).to.equal(ethers.parseEther('75')); // Max coverage amount
             expect(investmentFund).to.equal(ethers.parseEther('30')); // Increased by 5 ETH from custom premium
             console.log(await policyMaker.connect(addr1).calculateTotalCoverage(policyId, addr1.address));
+        });
+        it.only("should calculate bonus coverage correctly", async function () {
+            const policyId = 1; // Assuming policy ID 1
+            const coverageAmount = ethers.parseEther("100"); // 100 ETH coverage
+            const initialPremium = ethers.parseEther("10"); // 10 ETH initial premium
+
+            await policyMaker.connect(addr1).payInitialPremium(policyId, {value: initialPremium});
+
+            // Pay additional premium to exceed the coverage amount and generate bonus coverage
+            const additionalPremium = ethers.parseEther("200"); // 95 ETH additional premium, exceeding coverage
+            await policyMaker.connect(addr1).payPremium(policyId, {value: additionalPremium});
+
+            // Calculate expected bonus coverage
+            // Assuming bonus coverage is a simple 1:1 ratio for additional premiums beyond coverage amount
+            const expectedBonusCoverage = ethers.parseEther("5"); // 5 ETH bonus
+
+            // Retrieve the total coverage from the contract
+            const totalCoverage = await policyMaker.calculateTotalCoverage(policyId, addr1.address);
+            const bonusCoverage = totalCoverage - coverageAmount; // Subtract the base coverage to get bonus
+            // Assert that the bonus coverage is calculated correctly
+            expect(bonusCoverage).to.equal(expectedBonusCoverage);
         });
     })
 });

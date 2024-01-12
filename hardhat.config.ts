@@ -13,8 +13,16 @@ const config: HardhatUserConfig = {
   solidity: "0.7.6", // Your Solidity version
   networks: {
     // Add the Optimism network configuration
+    hardhat: {
+      chainId: 1,
+      forking: {
+        url: `https://mainnet.infura.io/v3/${API_KEY}`,
+        blockNumber: 10093620,
+        // May 19th, 2020 -- DeFi Summer
+      },
+    },
     optimism: {
-      url: `https://optimism-sepolia.infura.io/v3/` + API_KEY, // Optimism testnet RPC URL
+      url: `https://sepolia.optimism.io`, // Optimism testnet RPC URL
       accounts: [PRIVATE_KEY],
     },
   },

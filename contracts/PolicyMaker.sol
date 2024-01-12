@@ -292,11 +292,12 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
                 _policyHolder,
                 _inputPremium
             ));
+        uint256 bonusCoverage = policies[_policyId].coverageAmount - additionalCoverage; 
         uint256 potentialCoverage = currentTotalCoverage + additionalCoverage;
         return
-            (potentialCoverage > policies[_policyId].coverageAmount)
-                ? policies[_policyId].coverageAmount
-                : potentialCoverage;
+            (potentialCoverage >= policies[_policyId].coverageAmount)
+                ? policies[_policyId].coverageAmount - additionalCoverage >= 0 ? additionalCoverage : policies[_policyId].coverageAmount * 2
+                :  potentialCoverage;
     }
 
     function calculateTotalCoverage(
@@ -313,15 +314,16 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         uint256 totalCoverage = (initialCoverage + additionalCoverage) -
                             amountClaimed[_policyId][_policyHolder];
         
-        uint256 bonusCoverage = calculateAdditionalCoverage(
+        uint256 bonusCoverage = policies[_policyId].coverageAmount - calculateAdditionalCoverage(
             _policyId,
             _policyHolder,
             coverageFunded[_policyId][_policyHolder]
         );
+        
         return
-            (totalCoverage > policies[_policyId].coverageAmount)
-                ? policies[_policyId].coverageAmount + bonusCoverage
-                : totalCoverage + additionalCoverage;
+            (totalCoverage >= policies[_policyId].coverageAmount)
+                ? policies[_policyId].coverageAmount - bonusCoverage >= 0 ? bonusCoverage : policies[_policyId].coverageAmount * 2 
+                :  additionalCoverage;
     }
 
     function calculateInitialCoverage(
