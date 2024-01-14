@@ -190,7 +190,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         require(policies[_policyId].isActive, "Policy is not active");
         require(investmentFundPercentage <= 100, "Invalid percentage value");
         require(calculateTotalCoverage(_policyId, msg.sender) >= policies[_policyId].coverageAmount, "Coverage is not yet complete");
-
+        console.log(investmentFundPercentage);
         // Calculate the allocation of the premium based on the specified percentages
         uint256 premiumForInvestmentFund = (msg.value * investmentFundPercentage) / 100;
         uint256 premiumForCoverageFund = calculateTotalCoverage(_policyId, msg.sender) >= policies[_policyId].coverageAmount ? 0 : msg.value - premiumForInvestmentFund;
@@ -320,7 +320,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         if (amountClaimed[_policyId][_policyHolder] > totalCoverage) {
             return 0;
         }
-        
+
         totalCoverage = totalCoverage.sub(amountClaimed[_policyId][_policyHolder]);
         uint256 bonusCoverage = policies[_policyId].coverageAmount;
         if (coverageFunded[_policyId][_policyHolder] > 0) {
@@ -335,7 +335,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
                 bonusCoverage = 0;
             }
         }
-        
+
         if (totalCoverage >= policies[_policyId].coverageAmount) {
             return bonusCoverage > 0 ? bonusCoverage : policies[_policyId].coverageAmount * 2;
         } else {
