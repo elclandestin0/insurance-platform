@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.7.6;
 
+import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "hardhat/console.sol";
 
 contract PolicyMaker is Ownable, ReentrancyGuard {
-    
+    using SafeMath for uint256;
+
     struct Policy {
         uint256 coverageAmount;
         uint256 initialPremiumFee;
@@ -165,15 +167,15 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         uint256 remainingCoverageNeeded = (maxCoverage > currentTotalCoverage) ? (maxCoverage - currentTotalCoverage) : 0;
         uint256 premiumForCoverageFund;
         uint256 premiumForInvestmentFund;
-        
+
         // Regular premium split based on policy's fund percentages
         premiumForCoverageFund = (msg.value * policies[_policyId].coverageFundPercentage) / 100;
         premiumForInvestmentFund = msg.value - premiumForCoverageFund; // No overflow since premiumForCoverageFund <= msg.value
-        
+
         // Safely update fund balances
         coverageFundBalance[_policyId] += premiumForCoverageFund; // Safe add
         investmentFundBalance[_policyId] += premiumForInvestmentFund; // Safe add
-        
+
         // Record the premiums paid and fund contributions
         premiumsPaid[_policyId][msg.sender] += msg.value; // Safe add
         coverageFunded[_policyId][msg.sender] += premiumForCoverageFund; // Safe add
@@ -181,7 +183,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
 
         emit PremiumPaid(_policyId, msg.sender, msg.value, false);
     }
-    
+
 
     function payCustomPremium(uint32 _policyId, uint256 investmentFundPercentage) public payable {
         require(isPolicyOwner(_policyId, msg.sender), "Not a policy owner");
@@ -235,7 +237,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         return effectivePremium > remainingCoverageNeeded ? remainingCoverageNeeded : effectivePremium;
     }
 
-    function calculatePremiumAllocation(uint32 _policyId, uint256 _premiumAmount) public view returns (uint256 premiumForCoverageFund, uint256 premiumForInvestmentFund) {
+    function calculatePremiumAllocation(uint32 _policyId, uint256 _premiumAmount) public view returns (uint256, uint256) {
         Policy storage policy = policies[_policyId];
         uint256 premiumForCoverageFund = (_premiumAmount * policies[_policyId].coverageFundPercentage) / 100;
         uint256 premiumForInvestmentFund = (_premiumAmount * policies[_policyId].investmentFundPercentage) / 100;
@@ -292,12 +294,12 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
                 _policyHolder,
                 _inputPremium
             ));
-        uint256 bonusCoverage = policies[_policyId].coverageAmount - additionalCoverage; 
+        uint256 bonusCoverage = policies[_policyId].coverageAmount - additionalCoverage;
         uint256 potentialCoverage = currentTotalCoverage + additionalCoverage;
         return
             (potentialCoverage >= policies[_policyId].coverageAmount)
                 ? policies[_policyId].coverageAmount - additionalCoverage >= 0 ? additionalCoverage : policies[_policyId].coverageAmount * 2
-                :  potentialCoverage;
+                : potentialCoverage;
     }
 
     function calculateTotalCoverage(
@@ -311,19 +313,34 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
             _policyHolder,
             premiumsPaid[_policyId][_policyHolder]
         );
-        uint256 totalCoverage = (initialCoverage + additionalCoverage) -
-                            amountClaimed[_policyId][_policyHolder];
+//        uint256 totalCoverage = (initialCoverage + additionalCoverage) -
+//                            amountClaimed[_policyId][_policyHolder];
+
+        uint256 totalCoverage = initialCoverage.add(additionalCoverage);
+        if (amountClaimed[_policyId][_policyHolder] > totalCoverage) {
+            return 0;
+        }
         
-        uint256 bonusCoverage = policies[_policyId].coverageAmount - calculateAdditionalCoverage(
-            _policyId,
-            _policyHolder,
-            coverageFunded[_policyId][_policyHolder]
-        );
+        totalCoverage = totalCoverage.sub(amountClaimed[_policyId][_policyHolder]);
+        uint256 bonusCoverage = policies[_policyId].coverageAmount;
+        if (coverageFunded[_policyId][_policyHolder] > 0) {
+            uint256 additionalCoverageForBonus = calculateAdditionalCoverage(
+                _policyId,
+                _policyHolder,
+                coverageFunded[_policyId][_policyHolder]
+            );
+            if (bonusCoverage > additionalCoverageForBonus) {
+                bonusCoverage = bonusCoverage.sub(additionalCoverageForBonus);
+            } else {
+                bonusCoverage = 0;
+            }
+        }
         
-        return
-            (totalCoverage >= policies[_policyId].coverageAmount)
-                ? policies[_policyId].coverageAmount - bonusCoverage >= 0 ? bonusCoverage : policies[_policyId].coverageAmount * 2 
-                :  additionalCoverage;
+        if (totalCoverage >= policies[_policyId].coverageAmount) {
+            return bonusCoverage > 0 ? bonusCoverage : policies[_policyId].coverageAmount * 2;
+        } else {
+            return additionalCoverage;
+        }
     }
 
     function calculateInitialCoverage(
@@ -333,7 +350,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
             (policies[_policyId].coverageAmount *
                 policies[_policyId].initialCoveragePercentage) / 100;
     }
-    
+
     function calculateAdditionalCoverage(
         uint32 _policyId,
         address _policyHolder,

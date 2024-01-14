@@ -380,7 +380,7 @@ describe("PolicyMaker", function () {
             await policyMaker.connect(addr1).payInitialPremium(policyId, {value: initialPremium});
 
             // Pay additional premium to exceed the coverage amount and generate bonus coverage
-            const additionalPremium = ethers.parseEther("200"); // 95 ETH additional premium, exceeding coverage
+            const additionalPremium = ethers.parseEther("95"); // 95 ETH additional premium, exceeding coverage
             await policyMaker.connect(addr1).payPremium(policyId, {value: additionalPremium});
 
             // Calculate expected bonus coverage
@@ -389,6 +389,7 @@ describe("PolicyMaker", function () {
 
             // Retrieve the total coverage from the contract
             const totalCoverage = await policyMaker.calculateTotalCoverage(policyId, addr1.address);
+            console.log("total coverage ", ethers.formatEther(totalCoverage));
             const bonusCoverage = totalCoverage - coverageAmount; // Subtract the base coverage to get bonus
             // Assert that the bonus coverage is calculated correctly
             expect(bonusCoverage).to.equal(expectedBonusCoverage);
