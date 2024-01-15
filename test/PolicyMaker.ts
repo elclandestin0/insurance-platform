@@ -368,9 +368,10 @@ describe("PolicyMaker", function () {
             await policyMaker.connect(addr1).payCustomPremium(policyId, 10, {value: ethers.parseEther('10')});
             const coverageFund = await policyMaker.coverageFundBalance(policyId);
             const investmentFund = await policyMaker.investmentFundBalance(policyId);
+            const totalCoverage = await policyMaker.calculateTotalCoverage(policyId, addr1.address);
+            console.log(ethers.formatEther(totalCoverage));
             expect(coverageFund).to.equal(ethers.parseEther('75')); // Max coverage amount
             expect(investmentFund).to.equal(ethers.parseEther('30')); // Increased by 5 ETH from custom premium
-            console.log(await policyMaker.connect(addr1).calculateTotalCoverage(policyId, addr1.address));
         });
         it("should calculate bonus coverage correctly", async function () {
             const policyId = 1; // Assuming policy ID 1
@@ -393,6 +394,27 @@ describe("PolicyMaker", function () {
             const bonusCoverage = totalCoverage - coverageAmount; // Subtract the base coverage to get bonus
             // Assert that the bonus coverage is calculated correctly
             expect(bonusCoverage).to.equal(expectedBonusCoverage);
+        });
+        it("Should correctly update investmentFundBalance after paying custom premium", async function () {
+            const policyId = 1; // Assuming policy ID 1
+            const coverageAmount = ethers.parseEther("100"); // 100 ETH coverage
+            const initialPremium = ethers.parseEther("10"); // 10 ETH initial premium
+
+            await policyMaker.connect(addr1).payInitialPremium(policyId, {value: initialPremium});
+
+            // Pay additional premium to exceed the coverage amount and generate bonus coverage
+            const additionalPremium = ethers.parseEther("95"); // 95 ETH additional premium, exceeding coverage
+            await policyMaker.connect(addr1).payPremium(policyId, {value: additionalPremium});
+            let investmentFunded = await policyMaker.connect(addr1).investmentFunded(policyId, addr1.address);
+            console.log(investmentFunded);
+            const investmentFundPercentage = BigInt(0); // 50% for example
+            const premiumAmount = ethers.parseEther('10'); // Paying 1 ETH as premium
+            await policyMaker.connect(addr1).payCustomPremium(policyId, investmentFundPercentage, {value: premiumAmount});
+            // Assert: Check the investmentFundBalance
+            const investmentFundBalance = await policyMaker.investmentFundBalance(policyId);
+
+            investmentFunded = await policyMaker.connect(addr1).investmentFunded(policyId, addr1.address);
+            expect(investmentFundBalance).to.equal(premiumAmount * investmentFundPercentage / BigInt(100));
         });
     })
 });

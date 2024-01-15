@@ -152,7 +152,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         investmentFundBalance[_policyId] +=
             (msg.value * policies[_policyId].investmentFundPercentage) /
             100;
-        coverageFunded[_policyId][msg.sender] += (msg.value * policies[_policyId].investmentFundPercentage) / 100;
+        coverageFunded[_policyId][msg.sender] += (msg.value * policies[_policyId].coverageFundPercentage) / 100;
         investmentFunded[_policyId][msg.sender] += (msg.value * policies[_policyId].investmentFundPercentage) / 100;
         emit PremiumPaid(_policyId, msg.sender, msg.value, true);
     }
@@ -190,10 +190,10 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         require(policies[_policyId].isActive, "Policy is not active");
         require(investmentFundPercentage <= 100, "Invalid percentage value");
         require(calculateTotalCoverage(_policyId, msg.sender) >= policies[_policyId].coverageAmount, "Coverage is not yet complete");
-        console.log(investmentFundPercentage);
+
         // Calculate the allocation of the premium based on the specified percentages
         uint256 premiumForInvestmentFund = (msg.value * investmentFundPercentage) / 100;
-        uint256 premiumForCoverageFund = calculateTotalCoverage(_policyId, msg.sender) >= policies[_policyId].coverageAmount ? 0 : msg.value - premiumForInvestmentFund;
+        uint256 premiumForCoverageFund = msg.value - premiumForInvestmentFund;
 
         // Ensure premium allocation does not exceed the paid amount
         premiumForInvestmentFund = (premiumForInvestmentFund > msg.value) ? msg.value : premiumForInvestmentFund;
@@ -308,20 +308,19 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     ) public view returns (uint256) {
         require(policies[_policyId].isActive, "Policy is not active");
         uint256 initialCoverage = calculateInitialCoverage(_policyId);
+//        console.log(initialCoverage);
         uint256 additionalCoverage = calculateAdditionalCoverage(
             _policyId,
             _policyHolder,
             premiumsPaid[_policyId][_policyHolder]
         );
-//        uint256 totalCoverage = (initialCoverage + additionalCoverage) -
-//                            amountClaimed[_policyId][_policyHolder];
-
+        
         uint256 totalCoverage = initialCoverage.add(additionalCoverage);
+//        console.log(totalCoverage);
         if (amountClaimed[_policyId][_policyHolder] > totalCoverage) {
             return 0;
         }
 
-        totalCoverage = totalCoverage.sub(amountClaimed[_policyId][_policyHolder]);
         uint256 bonusCoverage = policies[_policyId].coverageAmount;
         if (coverageFunded[_policyId][_policyHolder] > 0) {
             uint256 additionalCoverageForBonus = calculateAdditionalCoverage(
@@ -335,11 +334,10 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
                 bonusCoverage = 0;
             }
         }
-
         if (totalCoverage >= policies[_policyId].coverageAmount) {
             return bonusCoverage > 0 ? bonusCoverage : policies[_policyId].coverageAmount * 2;
         } else {
-            return additionalCoverage;
+            return totalCoverage;
         }
     }
 
