@@ -1,6 +1,6 @@
 ﻿import {ethers} from "hardhat";
 import {expect} from "chai";
-import {PolicyMaker, Payout} from "../typechain";
+import {PolicyMaker} from "../typechain";
 import {BigNumberish, Signer} from "ethers";
 
 describe("PolicyMaker", function () {
@@ -413,16 +413,22 @@ describe("PolicyMaker", function () {
     describe.only("Aave Pool Integration", function () {
         it("should invest in Aave pool and handle investments", async function () {
             // Pay initial premium to activate the policy
-            await policyMaker.connect(addr1).payInitialPremium(policyId, { value: ethers.parseEther("10") });
+            await policyMaker.connect(addr1).payInitialPremium(policyId, {value: ethers.parseEther("10")});
 
             // Pay additional premiums (three times the coverage amount)
             const additionalPremium = ethers.parseEther("50"); // 3 times the coverage amount
-            await policyMaker.connect(addr1).payPremium(policyId, { value: additionalPremium });
+            await policyMaker.connect(addr1).payPremium(policyId, {value: additionalPremium});
 
             // Pay custom premium with 100% allocation to the investment fund
             const customPremium = ethers.parseEther("30");
-            await policyMaker.connect(addr1).payCustomPremium(policyId, 100, { value: customPremium });
+            await policyMaker.connect(addr1).payCustomPremium(policyId, 100, {value: customPremium});
 
+            // Aave set-up
+            const aWethAddress = "0x030bA81f1c18d280636F32af80b9AAd02Cf0854e";
+            // Record the initial aToken balance
+            const aToken = await ethers.getContractAt("IERC20", aWethAddress);
+            let initialATokenBalance = await aToken.balanceOf(await owner.getAddress());
+            console.log(initialATokenBalance);
             // Invest in the Aave pool
             // Assuming WETH is the asset and the contract has enough WETH balance
             const wethAddress = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"; // Replace with actual WETH address
@@ -430,8 +436,11 @@ describe("PolicyMaker", function () {
             await policyMaker.connect(owner).investInAavePool(wethAddress, investAmount);
 
             // Simulate time passage to accrue interest
-            await ethers.provider.send("evm_increaseTime", [3600 * 24 * 365]); // Fast-forward one month
+            await ethers.provider.send("evm_increaseTime", [3600 * 24 * 365]); // Fast-forward one year
             await ethers.provider.send("evm_mine");
+
+            initialATokenBalance = await aToken.balanceOf(await owner.getAddress());
+            console.log(initialATokenBalance);
 
             // Withdraw from the Aave pool
             await policyMaker.connect(owner).withdrawFromAavePool(wethAddress, investAmount);
