@@ -17,7 +17,7 @@ const config: HardhatUserConfig = {
       chainId: 1,
       forking: {
         url: `https://mainnet.infura.io/v3/${API_KEY}`,
-        blockNumber: 10093620,
+        // blockNumber: 1622505600,
         // May 19th, 2020 -- DeFi Summer
       },
     },

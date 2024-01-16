@@ -38,11 +38,11 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     uint32 public nextPolicyId = 1;
     mapping(uint32 => uint256) public coverageFundBalance;
     mapping(uint32 => uint256) public investmentFundBalance;
-    
+
     // Aave set-up
     IPoolAddressesProvider private addressesProvider;
     IPool private lendingPool;
-    
+
     constructor(address initialOwner, address _addressesProvider) Ownable(initialOwner) {
         addressesProvider = IPoolAddressesProvider(_addressesProvider);
         lendingPool = IPool(addressesProvider.getPool());
@@ -341,7 +341,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
                 coverageFunded[_policyId][_policyHolder]
             );
             if (bonusCoverage > additionalCoverageForBonus) {
-                ( ,bonusCoverage) = bonusCoverage.trySub(additionalCoverageForBonus);
+                (, bonusCoverage) = bonusCoverage.trySub(additionalCoverageForBonus);
             } else {
                 bonusCoverage = 0;
             }
@@ -473,7 +473,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     function setPayoutContract(address _payoutContract) external onlyOwner {
         payoutContract = _payoutContract;
     }
-    
+
     // Aave pool functions
 
     function investInAavePool(address asset, uint256 amount) external {
@@ -486,5 +486,5 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         // Ensure only authorized access
         lendingPool.withdraw(asset, amount, address(this));
     }
-    
+
 }

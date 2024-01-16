@@ -5,20 +5,15 @@ import {BigNumberish, Signer} from "ethers";
 
 describe("PolicyMaker", function () {
     let policyMaker: PolicyMaker;
-    let payout: Payout;
     let owner: Signer, addr1: Signer;
     let policyId: any;
 
     // Deploying the PolicyMaker contract before each test
     beforeEach(async function () {
         [owner, addr1] = await ethers.getSigners();
+        const policyMakerAddress = "0xAE246E208ea35B3F23dE72b697D47044FC594D5F"; // Replace with your already deployed contract address
         const PolicyMaker = await ethers.getContractFactory("PolicyMaker");
-        const Payout = await ethers.getContractFactory("Payout");
-        policyMaker = await PolicyMaker.deploy(owner.address)
-        payout = await Payout.deploy(await policyMaker.getAddress());
-        await policyMaker.waitForDeployment();
-        await payout.waitForDeployment();
-        await policyMaker.setPayoutContract(await payout.getAddress());
+        policyMaker = await PolicyMaker.attach(policyMakerAddress);
         policyId = 1;
         await policyMaker.createPolicy(
             ethers.parseEther("100"),
@@ -32,7 +27,6 @@ describe("PolicyMaker", function () {
             25
         );
     });
-
     describe("Policy Creation", function () {
         it("Should allow the owner to create a new policy", async function () {
             const coverageAmount: any = ethers.parseEther('100'); // Assuming no decimals needed
@@ -60,7 +54,6 @@ describe("PolicyMaker", function () {
 
         // Add more tests for policy updates, deactivation, etc.
     });
-
     describe("Premium Payments", function () {
         it("Should allow payment of initial premium and set claimant status", async function () {
             const coverageAmount: any = ethers.parseEther('100'); // Assuming no decimals needed
@@ -227,7 +220,7 @@ describe("PolicyMaker", function () {
             expect(totalFunds).to.equal(initialPremiumFee);
         });
     });
-    describe.only("Claim processing", function () {
+    describe("Claim processing", function () {
         it("Should process a valid claim and transfer the correct payout amount", async function () {
             const policyId = ethers.parseUnits('1', 0);
             const coverageAmount = ethers.parseEther('100');
@@ -362,7 +355,7 @@ describe("PolicyMaker", function () {
             expect(coverageFund).to.equal(ethers.parseEther('75')); // Max coverage amount
             expect(investmentFund).to.equal(ethers.parseEther('30')); // Increased by 5 ETH from custom premium
         });
-        it.only("Should calculate correct coverage amount", async function () {
+        it("Should calculate correct coverage amount", async function () {
             await policyMaker.connect(addr1).payInitialPremium(policyId, {value: ethers.parseEther('10')});
             await policyMaker.connect(addr1).payPremium(policyId, {value: ethers.parseEther('90')});
             await policyMaker.connect(addr1).payCustomPremium(policyId, 10, {value: ethers.parseEther('10')});
@@ -416,5 +409,32 @@ describe("PolicyMaker", function () {
             investmentFunded = await policyMaker.connect(addr1).investmentFunded(policyId, addr1.address);
             expect(investmentFundBalance).to.equal(premiumAmount * investmentFundPercentage / BigInt(100));
         });
-    })
+    });
+    describe.only("Aave Pool Integration", function () {
+        it("should invest in Aave pool and handle investments", async function () {
+            // Pay initial premium to activate the policy
+            await policyMaker.connect(addr1).payInitialPremium(policyId, { value: ethers.parseEther("10") });
+
+            // Pay additional premiums (three times the coverage amount)
+            const additionalPremium = ethers.parseEther("50"); // 3 times the coverage amount
+            await policyMaker.connect(addr1).payPremium(policyId, { value: additionalPremium });
+
+            // Pay custom premium with 100% allocation to the investment fund
+            const customPremium = ethers.parseEther("30");
+            await policyMaker.connect(addr1).payCustomPremium(policyId, 100, { value: customPremium });
+
+            // Invest in the Aave pool
+            // Assuming WETH is the asset and the contract has enough WETH balance
+            const wethAddress = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"; // Replace with actual WETH address
+            const investAmount = ethers.parseEther("10");
+            await policyMaker.connect(owner).investInAavePool(wethAddress, investAmount);
+
+            // Simulate time passage to accrue interest
+            await ethers.provider.send("evm_increaseTime", [3600 * 24 * 365]); // Fast-forward one month
+            await ethers.provider.send("evm_mine");
+
+            // Withdraw from the Aave pool
+            await policyMaker.connect(owner).withdrawFromAavePool(wethAddress, investAmount);
+        });
+    });
 });
