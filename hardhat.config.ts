@@ -14,11 +14,9 @@ const config: HardhatUserConfig = {
   networks: {
     // Add the Optimism network configuration
     hardhat: {
-      chainId: 1,
+      chainId: 31337,
       forking: {
         url: `https://mainnet.infura.io/v3/${API_KEY}`,
-        // blockNumber: 1622505600,
-        // May 19th, 2020 -- DeFi Summer
       },
     },
     optimism: {

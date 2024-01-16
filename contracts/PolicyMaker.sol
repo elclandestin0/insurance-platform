@@ -38,10 +38,13 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     uint32 public nextPolicyId = 1;
     mapping(uint32 => uint256) public coverageFundBalance;
     mapping(uint32 => uint256) public investmentFundBalance;
+    mapping(uint32 => mapping(address => uint256)) public coverageFundTokenBalance;
+    mapping(uint32 => mapping(address => uint256)) public investmentFundTokenBalance;
 
     // Aave set-up
     IPoolAddressesProvider private addressesProvider;
     IPool private lendingPool;
+    address public constant WETH_ADDRESS = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 
     constructor(address initialOwner, address _addressesProvider) Ownable(initialOwner) {
         addressesProvider = IPoolAddressesProvider(_addressesProvider);
@@ -475,11 +478,9 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     }
 
     // Aave pool functions
-
-    function investInAavePool(address asset, uint256 amount) external {
-        // Ensure only authorized access (e.g., owner or designated manager)
-        IERC20(asset).approve(address(lendingPool), amount);
-        lendingPool.supply(asset, amount, address(this), 0);
+    function investInAavePool(uint256 amount) external payable {
+        IERC20(WETH_ADDRESS).approve(address(lendingPool), amount);
+        lendingPool.supply(WETH_ADDRESS, amount, address(this), 0);
     }
 
     function withdrawFromAavePool(address asset, uint256 amount) external {

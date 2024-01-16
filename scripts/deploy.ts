@@ -6,7 +6,7 @@ async function main() {
 
     // Deploy PolicyMaker
     const PolicyMakerFactory = await ethers.getContractFactory("PolicyMaker");
-    const policyMaker = await PolicyMakerFactory.deploy(owner.address, "0x2f39d218133AFaB8F2B819B1066c7E434Ad94E9e");
+    const policyMaker = await PolicyMakerFactory.deploy(await owner.getAddress(), "0x2f39d218133AFaB8F2B819B1066c7E434Ad94E9e");
     await policyMaker.waitForDeployment();
     console.log("Policy Maker deployed to address: ", await policyMaker.getAddress());
 
