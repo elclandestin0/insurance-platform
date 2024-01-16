@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.7.6;
+pragma solidity ^0.8.2;
 
-import "@openzeppelin/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@aave/core-v3/contracts/interfaces/IPool.sol";
+import "@aave/core-v3/contracts/interfaces/IPoolAddressesProvider.sol";
 import "hardhat/console.sol";
 
 contract PolicyMaker is Ownable, ReentrancyGuard {
-    using SafeMath for uint256;
+    using Math for uint256;
 
     struct Policy {
         uint256 coverageAmount;
@@ -35,8 +38,15 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     uint32 public nextPolicyId = 1;
     mapping(uint32 => uint256) public coverageFundBalance;
     mapping(uint32 => uint256) public investmentFundBalance;
-
-    constructor(address initialOwner) Ownable() {}
+    
+    // Aave set-up
+    IPoolAddressesProvider private addressesProvider;
+    IPool private lendingPool;
+    
+    constructor(address initialOwner, address _addressesProvider) Ownable(initialOwner) {
+        addressesProvider = IPoolAddressesProvider(_addressesProvider);
+        lendingPool = IPool(addressesProvider.getPool());
+    }
 
     event PolicyCreated(
         uint32 policyId,
@@ -308,19 +318,21 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     ) public view returns (uint256) {
         require(policies[_policyId].isActive, "Policy is not active");
         uint256 initialCoverage = calculateInitialCoverage(_policyId);
-//        console.log(initialCoverage);
         uint256 additionalCoverage = calculateAdditionalCoverage(
             _policyId,
             _policyHolder,
             premiumsPaid[_policyId][_policyHolder]
         );
-        
-        uint256 totalCoverage = initialCoverage.add(additionalCoverage);
-//        console.log(totalCoverage);
+
+        (, uint256 totalCoverage) = initialCoverage.tryAdd(additionalCoverage);
         if (amountClaimed[_policyId][_policyHolder] > totalCoverage) {
             return 0;
         }
 
+        // Subtract the claimed amount from the total coverage
+        (, uint256 netCoverageClaimed) = totalCoverage.trySub(amountClaimed[_policyId][_policyHolder]);
+
+        // Calculate bonus coverage if any
         uint256 bonusCoverage = policies[_policyId].coverageAmount;
         if (coverageFunded[_policyId][_policyHolder] > 0) {
             uint256 additionalCoverageForBonus = calculateAdditionalCoverage(
@@ -329,15 +341,19 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
                 coverageFunded[_policyId][_policyHolder]
             );
             if (bonusCoverage > additionalCoverageForBonus) {
-                bonusCoverage = bonusCoverage.sub(additionalCoverageForBonus);
+                ( ,bonusCoverage) = bonusCoverage.trySub(additionalCoverageForBonus);
             } else {
                 bonusCoverage = 0;
             }
         }
-        if (totalCoverage >= policies[_policyId].coverageAmount) {
-            return bonusCoverage > 0 ? bonusCoverage : policies[_policyId].coverageAmount * 2;
+
+        // Check if total coverage exceeds policy coverage amount
+        if (netCoverageClaimed >= policies[_policyId].coverageAmount) {
+            // Here, add logic to calculate true coverage beyond policy coverage * 2
+            uint256 excessCoverage = netCoverageClaimed - policies[_policyId].coverageAmount;
+            return policies[_policyId].coverageAmount + excessCoverage + bonusCoverage;
         } else {
-            return totalCoverage;
+            return netCoverageClaimed;
         }
     }
 
@@ -457,4 +473,18 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     function setPayoutContract(address _payoutContract) external onlyOwner {
         payoutContract = _payoutContract;
     }
+    
+    // Aave pool functions
+
+    function investInAavePool(address asset, uint256 amount) external {
+        // Ensure only authorized access (e.g., owner or designated manager)
+        IERC20(asset).approve(address(lendingPool), amount);
+        lendingPool.supply(asset, amount, address(this), 0);
+    }
+
+    function withdrawFromAavePool(address asset, uint256 amount) external {
+        // Ensure only authorized access
+        lendingPool.withdraw(asset, amount, address(this));
+    }
+    
 }
