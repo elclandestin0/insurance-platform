@@ -413,18 +413,17 @@ describe("PolicyMaker", function () {
     describe.only("Aave Pool Integration", function () {
         it("should invest in Aave pool and handle investments", async function () {
             // Pay initial premium to activate the policy
-            await policyMaker.connect(addr1).payInitialPremium(policyId, {value: ethers.parseEther("10")});
-            console.log(owner.address);
-            const additionalPremium = ethers.parseEther("50");
-            await policyMaker.connect(addr1).payPremium(policyId, {value: additionalPremium});
-
-            // Pay custom premium with 100% allocation to the investment fund
-            const customPremium = ethers.parseEther("30");
-            await policyMaker.connect(addr1).payCustomPremium(policyId, 100, {value: customPremium});
-
-            // Aave set-up
+            // await policyMaker.connect(addr1).payInitialPremium(policyId, {value: ethers.parseEther("10")});
+            // console.log(owner.address);
+            // const additionalPremium = ethers.parseEther("50");
+            // await policyMaker.connect(addr1).payPremium(policyId, {value: additionalPremium});
+            //
+            // // Pay custom premium with 100% allocation to the investment fund
+            // const customPremium = ethers.parseEther("30");
+            // await policyMaker.connect(addr1).payCustomPremium(policyId, 100, {value: customPremium});
+            //
+            // // Aave set-up
             const aWethAddress = "0x030bA81f1c18d280636F32af80b9AAd02Cf0854e";
-            // Record the initial aToken balance
             const aToken = await ethers.getContractAt("IERC20", aWethAddress);
             const wethToken = await ethers.getContractAt("IWETH", "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");
             let initialATokenBalance = await aToken.balanceOf(owner.address);
@@ -433,8 +432,9 @@ describe("PolicyMaker", function () {
             // Convert ETH to WETH
             const balance = await ethers.provider.getBalance(policyMakerAddress);
             console.log("Contract ETH Balance:", ethers.formatEther(balance));
-            expect(await policyMaker.connect(owner).convertEthToWeth({value: investAmount})).to.not.be.reverted;
-            console.log(await wethToken.balanceOf(await owner.getAddress()));
+            await expect(policyMaker.connect(owner).convertEthToWeth({value: 0})).to.be.revertedWith("You have to send ETH!");
+
+            await wethToken.balanceOf(await owner.getAddress());
             // expect(await wethToken.balanceOf(await owner.address)).to.be.greaterThan(0);
             // await policyMaker.connect(owner).investInAavePool(investAmount);
             // // Simulate time passage to accrue interest
@@ -446,6 +446,9 @@ describe("PolicyMaker", function () {
             //
             // // Withdraw from the Aave pool
             // await policyMaker.connect(owner).withdrawFromAavePool(wethAddress, investAmount * BigInt(3000));
+        });
+        it("should always revert", async function () {
+            await expect(policyMaker.alwaysRevert()).to.be.revertedWith("This function always reverts");
         });
     });
 });

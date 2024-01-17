@@ -144,6 +144,11 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         return policyOwners[_policyId][_claimant];
     }
 
+    function alwaysRevert() public pure {
+        revert("This function always reverts");
+    }
+
+
     // Payments section
     function payInitialPremium(uint32 _policyId) public payable {
         require(
@@ -481,11 +486,8 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     }
 
     function convertEthToWeth() public payable {
-        require(msg.value > 0, "You have to send anti-ETH!");
-        uint256 balanceBefore = weth.balanceOf(address(this));
+        require(msg.value > 0, "You have to send ETH!");
         weth.deposit{value: msg.value}();
-        uint256 balanceAfter = weth.balanceOf(address(this));
-        require(balanceAfter == 3000, "WETH conversion failed");
     }
 
 
