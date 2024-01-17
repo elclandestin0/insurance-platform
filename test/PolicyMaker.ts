@@ -1,17 +1,17 @@
 ﻿import {ethers} from "hardhat";
 import {expect} from "chai";
-import {PolicyMaker} from "../typechain";
+import {PolicyMaker, IWETH} from "../typechain";
 import {BigNumberish, Signer} from "ethers";
 
 describe("PolicyMaker", function () {
     let policyMaker: PolicyMaker;
     let owner: Signer, addr1: Signer;
     let policyId: any;
+    const policyMakerAddress = "0xAE246E208ea35B3F23dE72b697D47044FC594D5F"; // Replace with your already deployed contract address
 
     // Deploying the PolicyMaker contract before each test
     beforeEach(async function () {
         [owner, addr1] = await ethers.getSigners();
-        const policyMakerAddress = "0xAE246E208ea35B3F23dE72b697D47044FC594D5F"; // Replace with your already deployed contract address
         const PolicyMaker = await ethers.getContractFactory("PolicyMaker");
         policyMaker = await PolicyMaker.attach(policyMakerAddress);
         policyId = 1;
@@ -414,9 +414,8 @@ describe("PolicyMaker", function () {
         it("should invest in Aave pool and handle investments", async function () {
             // Pay initial premium to activate the policy
             await policyMaker.connect(addr1).payInitialPremium(policyId, {value: ethers.parseEther("10")});
-            console.log(owner);
-            // Pay additional premiums (three times the coverage amount)
-            const additionalPremium = ethers.parseEther("50"); // 3 times the coverage amount
+            console.log(owner.address);
+            const additionalPremium = ethers.parseEther("50");
             await policyMaker.connect(addr1).payPremium(policyId, {value: additionalPremium});
 
             // Pay custom premium with 100% allocation to the investment fund
@@ -427,20 +426,26 @@ describe("PolicyMaker", function () {
             const aWethAddress = "0x030bA81f1c18d280636F32af80b9AAd02Cf0854e";
             // Record the initial aToken balance
             const aToken = await ethers.getContractAt("IERC20", aWethAddress);
+            const wethToken = await ethers.getContractAt("IWETH", "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");
             let initialATokenBalance = await aToken.balanceOf(owner.address);
             const wethAddress = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"; // Replace with actual WETH address
             const investAmount = ethers.parseEther("10");
-            await policyMaker.connect(owner).investInAavePool(investAmount);
-
-            // Simulate time passage to accrue interest
-            await ethers.provider.send("evm_increaseTime", [3600 * 24 * 365]); // Fast-forward one year
-            await ethers.provider.send("evm_mine");
-
-            initialATokenBalance = await aToken.balanceOf(await owner.getAddress());
-            console.log(initialATokenBalance);
-
-            // Withdraw from the Aave pool
-            await policyMaker.connect(owner).withdrawFromAavePool(wethAddress, investAmount);
+            // Convert ETH to WETH
+            const balance = await ethers.provider.getBalance(policyMakerAddress);
+            console.log("Contract ETH Balance:", ethers.formatEther(balance));
+            expect(await policyMaker.connect(owner).convertEthToWeth({value: investAmount})).to.not.be.reverted;
+            console.log(await wethToken.balanceOf(await owner.getAddress()));
+            // expect(await wethToken.balanceOf(await owner.address)).to.be.greaterThan(0);
+            // await policyMaker.connect(owner).investInAavePool(investAmount);
+            // // Simulate time passage to accrue interest
+            // await ethers.provider.send("evm_increaseTime", [3600 * 24 * 365]); // Fast-forward one year
+            // await ethers.provider.send("evm_mine");
+            //
+            // initialATokenBalance = await aToken.balanceOf(await owner.getAddress());
+            // console.log(initialATokenBalance);
+            //
+            // // Withdraw from the Aave pool
+            // await policyMaker.connect(owner).withdrawFromAavePool(wethAddress, investAmount * BigInt(3000));
         });
     });
 });

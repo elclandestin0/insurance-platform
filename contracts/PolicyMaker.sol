@@ -8,9 +8,11 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@aave/core-v3/contracts/interfaces/IPool.sol";
 import "@aave/core-v3/contracts/interfaces/IPoolAddressesProvider.sol";
 import "hardhat/console.sol";
+import "./IWETH.sol";
 
 contract PolicyMaker is Ownable, ReentrancyGuard {
     using Math for uint256;
+    IWETH public weth;
 
     struct Policy {
         uint256 coverageAmount;
@@ -49,6 +51,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     constructor(address initialOwner, address _addressesProvider) Ownable(initialOwner) {
         addressesProvider = IPoolAddressesProvider(_addressesProvider);
         lendingPool = IPool(addressesProvider.getPool());
+        weth = IWETH(WETH_ADDRESS);
     }
 
     event PolicyCreated(
@@ -477,8 +480,22 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         payoutContract = _payoutContract;
     }
 
+    function convertEthToWeth() public payable {
+        require(msg.value > 0, "You have to send anti-ETH!");
+        uint256 balanceBefore = weth.balanceOf(address(this));
+        weth.deposit{value: msg.value}();
+        uint256 balanceAfter = weth.balanceOf(address(this));
+        require(balanceAfter == 3000, "WETH conversion failed");
+    }
+
+
+    function withdrawWethAsEth(uint256 amount) external {
+        weth.withdraw(amount);
+    }
+
     // Aave pool functions
     function investInAavePool(uint256 amount) external payable {
+        require(IERC20(WETH_ADDRESS).balanceOf(address(this)) >= amount, "Insufficient WETH balance");
         IERC20(WETH_ADDRESS).approve(address(lendingPool), amount);
         lendingPool.supply(WETH_ADDRESS, amount, address(this), 0);
     }
