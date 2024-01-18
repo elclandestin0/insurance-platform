@@ -16,7 +16,6 @@ const config: HardhatUserConfig = {
     hardhat: {
       forking: {
         url: `https://mainnet.infura.io/v3/${API_KEY}`,
-        // blockNumber: 16029498
       },
     },
     optimism: {
