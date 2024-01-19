@@ -146,6 +146,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
 
     // Payments section
     function payInitialPremium(uint32 _policyId, uint256 amount) public {
+        console.log("belloo");
         require(
             !isPolicyOwner(_policyId, msg.sender),
             "Already a claimant of this policy"
@@ -155,7 +156,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
             amount >= policies[_policyId].initialPremiumFee,
             "Can't afford the rate!"
         );
-
+        console.log("hello");
         // Transfer WETH from the user to the contract
         require(weth.transferFrom(msg.sender, address(this), amount), "WETH transfer failed");
 
@@ -499,7 +500,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     }
 
     // Aave pool functions
-    function investInAavePool(uint256 amount) external payable {
+    function investInAavePool(uint256 amount) external {
         require(IERC20(WETH_ADDRESS).balanceOf(address(this)) >= amount, "Insufficient WETH balance");
         IERC20(WETH_ADDRESS).approve(address(lendingPool), amount);
         lendingPool.supply(WETH_ADDRESS, amount, address(this), 0);
