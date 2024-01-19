@@ -38,8 +38,8 @@ describe("PolicyMaker", function () {
         // Ensure the balance is sufficient
         // Convert ETH to WETH
         await weth.connect(owner).deposit({value: amountToConvert});
-        const ownerBalance = await weth.balanceOf(owner.address);
-        console.log("owner balance ", ethers.formatEther(ownerBalance));
+        const ownerBalance = await weth.balanceOf(await owner.getAddress);
+        console.log("weth owner balance. ready to go.", ethers.formatEther(ownerBalance));
 
     });
     describe.only("Aave Pool Integration", function () {
@@ -52,10 +52,10 @@ describe("PolicyMaker", function () {
             expect(await policyMaker.connect(owner).convertEthToWeth(1)).to.be.revertedWith("Investment fund 0!");
         });
         it.only("should convert ETH to WETH from Policy Maker", async function () {
-            const amountToConvert = ethers.parseEther("2");
+            const initPremiumFee = ethers.parseEther("2");
             // Send ETH to the PolicyMaker contract as part of a transaction
             // For this example, let's assume you're using the payPremium function
-            await policyMaker.connect(owner).payInitialPremium(policyId, amountToConvert);
+            await policyMaker.connect(owner).payInitialPremium(policyId, initPremiumFee);
             // const investmentFundBalance = await policyMaker.investmentFundBalance(ethers.parseUnits("1", 0));
         });
     });
