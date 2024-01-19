@@ -429,23 +429,6 @@ describe("PolicyMaker", function () {
             console.log("Contract ETH Balance:", ethers.formatEther(balance));
             expect(await policyMaker.connect(owner).convertEthToWeth(1)).to.be.revertedWith("Investment fund 0!");
         });
-        it("Should get the correct amount of WETH converted", async function () {
-            await policyMaker.connect(addr1).payInitialPremium(policyId, {value: ethers.parseEther("10")});
-            const additionalPremium = ethers.parseEther("50");
-            await policyMaker.connect(addr1).payPremium(policyId, {value: additionalPremium});
-            // Pay custom premium with 100% allocation to the investment fund
-            const customPremium = ethers.parseEther("30");
-            await policyMaker.connect(addr1).payCustomPremium(policyId, 100, {value: customPremium});
-            const wethToken = await ethers.getContractAt("IWETH", "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");
-            // Check ETH balance of PolicyMaker before conversion
-            const ethBalanceBefore = await ethers.provider.getBalance(policyMakerAddress);
-            console.log("ETH Balance Before:", ethers.formatEther(ethBalanceBefore));
-            // Convert ETH to WETH
-            const tx = await policyMaker.connect(owner).convertEthToWeth(1);
-            // Check WETH balance after conversion
-            const wethBalance = await wethToken.balanceOf(policyMakerAddress);
-            console.log("WETH Balance After:", ethers.formatEther(wethBalance));
-        });
         it.only("should convert ETH to WETH", async function () {
             const amountToConvert = ethers.parseEther("1");
 
@@ -454,7 +437,7 @@ describe("PolicyMaker", function () {
             expect(ownerBalance).to.be.greaterThanOrEqual(amountToConvert);
 
             // Convert ETH to WETH
-            const tx = await weth.connect(owner).deposit({value: amountToConvert});
+            const tx = await weth.connect(policyMaker).deposit({value: amountToConvert});
             // Check WETH balance
             const wethBalance = await weth.balanceOf(owner.address);
             console.log(wethBalance);
