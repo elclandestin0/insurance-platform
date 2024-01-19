@@ -1,20 +1,25 @@
 ﻿import {ethers} from "hardhat";
 import {expect} from "chai";
-import {PolicyMaker, IWETH} from "../typechain";
+import {PolicyMaker, IWETH, WETH} from "../typechain";
 import {BigNumberish, ContractTransaction, Signer} from "ethers";
 
 describe("PolicyMaker", function () {
     let policyMaker: PolicyMaker;
+    let weth: WETH;
     let owner: Signer, addr1: Signer;
     let policyId: any;
     const policyMakerAddress = "0xAE246E208ea35B3F23dE72b697D47044FC594D5F"; // Replace with your already deployed contract address
-
+    const wethAddress = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
     // Deploying the PolicyMaker contract before each test
     beforeEach(async function () {
         [owner, addr1] = await ethers.getSigners();
         const PolicyMaker = await ethers.getContractFactory("PolicyMaker");
         policyMaker = await PolicyMaker.attach(policyMakerAddress);
         policyId = 1;
+
+        const WETH = await ethers.getContractFactory('WETH');
+        weth = WETH.attach(wethAddress); 
+        
         await policyMaker.createPolicy(
             ethers.parseEther("100"),
             ethers.parseEther("10"),
@@ -412,7 +417,6 @@ describe("PolicyMaker", function () {
     });
     describe.only("Aave Pool Integration", function () {
         it("Should fail when converting to WETH with 0 value", async function () {
-
             // Aave set-up
             const aWethAddress = "0x030bA81f1c18d280636F32af80b9AAd02Cf0854e";
             const aToken = await ethers.getContractAt("IERC20", aWethAddress);
@@ -423,21 +427,38 @@ describe("PolicyMaker", function () {
             // Convert ETH to WETH
             const balance = await ethers.provider.getBalance(policyMakerAddress);
             console.log("Contract ETH Balance:", ethers.formatEther(balance));
-            expect(await policyMaker.connect(owner).convertEthToWeth({value: ethers.parseEther("0")})).to.be.revertedWith("You have to send ETH!");
+            expect(await policyMaker.connect(owner).convertEthToWeth(1)).to.be.revertedWith("Investment fund 0!");
         });
         it("Should get the correct amount of WETH converted", async function () {
+            await policyMaker.connect(addr1).payInitialPremium(policyId, {value: ethers.parseEther("10")});
+            const additionalPremium = ethers.parseEther("50");
+            await policyMaker.connect(addr1).payPremium(policyId, {value: additionalPremium});
+            // Pay custom premium with 100% allocation to the investment fund
+            const customPremium = ethers.parseEther("30");
+            await policyMaker.connect(addr1).payCustomPremium(policyId, 100, {value: customPremium});
             const wethToken = await ethers.getContractAt("IWETH", "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");
-
             // Check ETH balance of PolicyMaker before conversion
-            const ethBalanceBefore = await ethers.provider.getBalance(policyMaker.address);
+            const ethBalanceBefore = await ethers.provider.getBalance(policyMakerAddress);
             console.log("ETH Balance Before:", ethers.formatEther(ethBalanceBefore));
+            // Convert ETH to WETH
+            const tx = await policyMaker.connect(owner).convertEthToWeth(1);
+            // Check WETH balance after conversion
+            const wethBalance = await wethToken.balanceOf(policyMakerAddress);
+            console.log("WETH Balance After:", ethers.formatEther(wethBalance));
+        });
+        it.only("should convert ETH to WETH", async function () {
+            const amountToConvert = ethers.parseEther("1");
+
+            // Ensure the balance is sufficient
+            const ownerBalance = await ethers.provider.getBalance(owner.address);
+            expect(ownerBalance).to.be.greaterThanOrEqual(amountToConvert);
 
             // Convert ETH to WETH
-            const tx = await policyMaker.connect(owner).convertEthToWeth({value: ethers.parseEther("10")});
-            console.log(tx.data);
-            // Check WETH balance after conversion
-            const wethBalance = await wethToken.balanceOf(policyMaker.address);
-            console.log("WETH Balance After:", ethers.formatEther(wethBalance));
+            const tx = await weth.connect(owner).deposit({value: amountToConvert});
+            // Check WETH balance
+            const wethBalance = await weth.balanceOf(owner.address);
+            console.log(wethBalance);
+            expect(wethBalance).to.equal(amountToConvert);
         });
         it("Aave pool rewards", async function () {
             // Pay initial premium to activate the policy

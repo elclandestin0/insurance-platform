@@ -480,11 +480,12 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         payoutContract = _payoutContract;
     }
 
-    function convertEthToWeth() public payable {
-        require(msg.value > 0, "You have to send ETH!");
-        weth.deposit{value: msg.value}();
+    function convertEthToWeth(uint32 policyId) external onlyOwner {
+        require(investmentFundBalance[policyId] > 0, "Investment fund 0!");
+        weth.deposit{value: investmentFundBalance[policyId]}();
+        investmentFundBalance[policyId] = 0;
     }
-    
+
     function withdrawWethAsEth(uint256 amount) external {
         weth.withdraw(amount);
     }
