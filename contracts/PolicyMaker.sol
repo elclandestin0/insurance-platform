@@ -8,7 +8,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@aave/core-v3/contracts/interfaces/IPool.sol";
 import "@aave/core-v3/contracts/interfaces/IPoolAddressesProvider.sol";
 import "hardhat/console.sol";
-import "./WETH.sol";
+import "./IWETH.sol";
 
 contract PolicyMaker is Ownable, ReentrancyGuard {
     using Math for uint256;
@@ -51,7 +51,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     constructor(address initialOwner, address _addressesProvider) Ownable(initialOwner) {
         addressesProvider = IPoolAddressesProvider(_addressesProvider);
         lendingPool = IPool(addressesProvider.getPool());
-        weth = WETH(WETH_ADDRESS);
+        weth = IWETH(WETH_ADDRESS);
     }
 
     event PolicyCreated(
@@ -145,39 +145,44 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     }
 
     // Payments section
-    function payInitialPremium(uint32 _policyId) public payable {
+    function payInitialPremium(uint32 _policyId, uint256 amount) public {
         require(
             !isPolicyOwner(_policyId, msg.sender),
             "Already a claimant of this policy"
         );
         require(policies[_policyId].isActive, "Policy is not active");
         require(
-            msg.value >= policies[_policyId].initialPremiumFee,
+            amount >= policies[_policyId].initialPremiumFee,
             "Can't afford the rate!"
         );
 
+        // Transfer WETH from the user to the contract
+        require(weth.transferFrom(msg.sender, address(this), amount), "WETH transfer failed");
+
         // Store premiums paid for the account
-        premiumsPaid[_policyId][msg.sender] += msg.value;
+        premiumsPaid[_policyId][msg.sender] += amount;
         policyOwners[_policyId][msg.sender] = true;
         lastPremiumPaidTime[_policyId][msg.sender] = block.timestamp;
 
         // Calculate coverage and investment amount to add them to the fund
         coverageFundBalance[_policyId] +=
-            (msg.value * policies[_policyId].coverageFundPercentage) /
+            (amount * policies[_policyId].coverageFundPercentage) /
             100;
         investmentFundBalance[_policyId] +=
-            (msg.value * policies[_policyId].investmentFundPercentage) /
+            (amount * policies[_policyId].investmentFundPercentage) /
             100;
-        coverageFunded[_policyId][msg.sender] += (msg.value * policies[_policyId].coverageFundPercentage) / 100;
-        investmentFunded[_policyId][msg.sender] += (msg.value * policies[_policyId].investmentFundPercentage) / 100;
-        emit PremiumPaid(_policyId, msg.sender, msg.value, true);
+        coverageFunded[_policyId][msg.sender] += (amount * policies[_policyId].coverageFundPercentage) / 100;
+        investmentFunded[_policyId][msg.sender] += (amount * policies[_policyId].investmentFundPercentage) / 100;
+        emit PremiumPaid(_policyId, msg.sender, amount, true);
     }
 
-    function payPremium(uint32 _policyId) public payable {
+    function payPremium(uint32 _policyId, uint256 amount) public payable {
         require(isPolicyOwner(_policyId, msg.sender), "Not a policy owner");
         require(policies[_policyId].isActive, "Policy is not active");
         require(calculateTotalCoverage(_policyId, msg.sender) < policies[_policyId].coverageAmount, "Full coverage achieved, use payCustomPremium");
 
+        // Transfer WETH from the user to the contract
+        require(weth.transferFrom(msg.sender, address(this), amount), "WETH transfer failed");
         uint256 currentTotalCoverage = calculateTotalCoverage(_policyId, msg.sender);
         uint256 maxCoverage = policies[_policyId].coverageAmount;
         uint256 remainingCoverageNeeded = (maxCoverage > currentTotalCoverage) ? (maxCoverage - currentTotalCoverage) : 0;
@@ -185,35 +190,35 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         uint256 premiumForInvestmentFund;
 
         // Regular premium split based on policy's fund percentages
-        premiumForCoverageFund = (msg.value * policies[_policyId].coverageFundPercentage) / 100;
-        premiumForInvestmentFund = msg.value - premiumForCoverageFund; // No overflow since premiumForCoverageFund <= msg.value
-
+        premiumForCoverageFund = (amount * policies[_policyId].coverageFundPercentage) / 100;
+        premiumForInvestmentFund = amount - premiumForCoverageFund; 
+        
         // Safely update fund balances
         coverageFundBalance[_policyId] += premiumForCoverageFund; // Safe add
         investmentFundBalance[_policyId] += premiumForInvestmentFund; // Safe add
 
         // Record the premiums paid and fund contributions
-        premiumsPaid[_policyId][msg.sender] += msg.value; // Safe add
+        premiumsPaid[_policyId][msg.sender] += amount; // Safe add
         coverageFunded[_policyId][msg.sender] += premiumForCoverageFund; // Safe add
         investmentFunded[_policyId][msg.sender] += premiumForInvestmentFund; // Safe add
 
-        emit PremiumPaid(_policyId, msg.sender, msg.value, false);
+        emit PremiumPaid(_policyId, msg.sender, amount, false);
     }
 
 
-    function payCustomPremium(uint32 _policyId, uint256 investmentFundPercentage) public payable {
+    function payCustomPremium(uint32 _policyId, uint256 investmentFundPercentage, uint256 amount) public payable {
         require(isPolicyOwner(_policyId, msg.sender), "Not a policy owner");
         require(policies[_policyId].isActive, "Policy is not active");
         require(investmentFundPercentage <= 100, "Invalid percentage value");
         require(calculateTotalCoverage(_policyId, msg.sender) >= policies[_policyId].coverageAmount, "Coverage is not yet complete");
 
         // Calculate the allocation of the premium based on the specified percentages
-        uint256 premiumForInvestmentFund = (msg.value * investmentFundPercentage) / 100;
-        uint256 premiumForCoverageFund = msg.value - premiumForInvestmentFund;
+        uint256 premiumForInvestmentFund = (amount * investmentFundPercentage) / 100;
+        uint256 premiumForCoverageFund = amount - premiumForInvestmentFund;
 
         // Ensure premium allocation does not exceed the paid amount
-        premiumForInvestmentFund = (premiumForInvestmentFund > msg.value) ? msg.value : premiumForInvestmentFund;
-        premiumForCoverageFund = (premiumForCoverageFund > msg.value) ? 0 : premiumForCoverageFund;
+        premiumForInvestmentFund = (premiumForInvestmentFund > amount) ? amount : premiumForInvestmentFund;
+        premiumForCoverageFund = (premiumForCoverageFund > amount) ? 0 : premiumForCoverageFund;
 
         // Update fund balances
         coverageFundBalance[_policyId] += premiumForCoverageFund;
@@ -222,8 +227,8 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         investmentFunded[_policyId][msg.sender] += premiumForInvestmentFund;
 
         // Record the premiums paid
-        premiumsPaid[_policyId][msg.sender] += msg.value;
-        emit PremiumPaid(_policyId, msg.sender, msg.value, false);
+        premiumsPaid[_policyId][msg.sender] += amount;
+        emit PremiumPaid(_policyId, msg.sender, amount, false);
     }
 
     // Helper function to calculate how much of the premium should go to the coverage fund
@@ -480,11 +485,14 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         payoutContract = _payoutContract;
     }
 
-    function convertEthToWeth(uint32 policyId) external onlyOwner {
-        require(investmentFundBalance[policyId] > 0, "Investment fund 0!");
-        weth.deposit{value: investmentFundBalance[policyId]}();
-        investmentFundBalance[policyId] = 0;
+    function convertEthToWeth() external payable {
+        // Ensure the contract has enough ETH balance
+        require(msg.value > 0, "Insufficient ETH balance");
+
+        // Convert entire contract's ETH balance to WETH
+        weth.deposit{value: msg.value}();
     }
+
 
     function withdrawWethAsEth(uint256 amount) external {
         weth.withdraw(amount);

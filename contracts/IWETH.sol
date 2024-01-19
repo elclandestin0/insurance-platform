@@ -8,4 +8,5 @@ interface IWETH {
 
     // Add the balanceOf function
     function balanceOf(address account) external view returns (uint256);
+    function transferFrom(address src, address dst, uint wad) external returns(bool);
 }
