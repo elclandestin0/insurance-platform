@@ -8,7 +8,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@aave/core-v3/contracts/interfaces/IPool.sol";
 import "@aave/core-v3/contracts/interfaces/IPoolAddressesProvider.sol";
 import "hardhat/console.sol";
-import "./IWETH.sol";
+import "./WETH.sol";
 
 contract PolicyMaker is Ownable, ReentrancyGuard {
     using Math for uint256;
@@ -51,7 +51,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     constructor(address initialOwner, address _addressesProvider) Ownable(initialOwner) {
         addressesProvider = IPoolAddressesProvider(_addressesProvider);
         lendingPool = IPool(addressesProvider.getPool());
-        weth = IWETH(WETH_ADDRESS);
+        weth = WETH(WETH_ADDRESS);
     }
 
     event PolicyCreated(
