@@ -12,7 +12,7 @@ describe("PolicyMaker", function () {
     let aWeth: any;
     let owner: Signer, addr1: Signer;
     let policyId: any;
-    const policyMakerAddress = "0xaB837301d12cDc4b97f1E910FC56C9179894d9cf"; 
+    const policyMakerAddress = "0x76a999d5F7EFDE0a300e710e6f52Fb0A4b61aD58"; 
     const wethAddress = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
     const aWethAddress = "0x030bA81f1c18d280636F32af80b9AAd02Cf0854e";
     const poolAddress = "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2";
@@ -76,15 +76,15 @@ describe("PolicyMaker", function () {
             const ownerBalanceAfter = await weth.balanceOf(await owner.getAddress());
             expect(ownerBalanceBefore).to.be.greaterThan(ownerBalanceAfter);
         });
-        it("should increase aWETH balance after 1 year", async function () {
+        it.only("should increase aWETH balance after 1 year", async function () {
             const initialAWethBalance = await aWeth.balanceOf(policyMakerAddress);
             const ownerBalanceBefore = await weth.balanceOf(policyMakerAddress);
-            console.log("weth owner balance before investing.", ethers.formatEther(ownerBalanceBefore));
+            console.log("weth policymaker balance before investing.", ethers.formatEther(ownerBalanceBefore));
             const investmentFundBalance = await policyMaker.investmentFundBalance(1);
+            console.log(investmentFundBalance);
             // Invest in Aave Pool
             // Retrieve reserve data for WETH
-            const reserveData = await poolContract.getReserveData(wethAddress);
-            console.log(reserveData);
+            // const reserveData = await poolContract.getReserveData(wethAddress);
             await policyMaker.connect(owner).investInAavePool(investmentFundBalance);
             const ownerBalanceAfter = await weth.balanceOf(policyMakerAddress);
             console.log("weth owner balance after investing.", ethers.formatEther(ownerBalanceAfter));
@@ -94,6 +94,9 @@ describe("PolicyMaker", function () {
             await ethers.provider.send("evm_increaseTime", [oneYearInSeconds]);
             await ethers.provider.send("evm_mine");
 
+
+            const reserveDataBefore = await poolContract.getReserveData(wethAddress);
+            console.log(reserveDataBefore);
             // Check aWETH balance
             const finalAWethBalance = await aWeth.balanceOf(policyMakerAddress);
             console.log(finalAWethBalance);
