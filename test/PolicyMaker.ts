@@ -12,11 +12,11 @@ describe("PolicyMaker", function () {
     let aWeth: any;
     let owner: Signer, addr1: Signer;
     let policyId: any;
-    const policyMakerAddress = "0x76a999d5F7EFDE0a300e710e6f52Fb0A4b61aD58"; 
+    const policyMakerAddress = "0x76a999d5F7EFDE0a300e710e6f52Fb0A4b61aD58";
     const wethAddress = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
     const aWethAddress = "0x030bA81f1c18d280636F32af80b9AAd02Cf0854e";
     const poolAddress = "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2";
-    
+
     // Deploying the PolicyMaker contract before each test
     before(async function () {
         [owner, addr1] = await ethers.getSigners();
@@ -26,10 +26,10 @@ describe("PolicyMaker", function () {
 
         const WETH = await ethers.getContractFactory('WETH');
         weth = WETH.attach(wethAddress);
-        
+
         // Maybe delete later?
         aWeth = new ethers.Contract(aWethAddress, IERC20_ABI.abi, owner);
-        
+
         poolContract = await ethers.getContractAt('IPool', poolAddress);
         const tx = await policyMaker.createPolicy(
             ethers.parseEther("100"),
@@ -44,7 +44,7 @@ describe("PolicyMaker", function () {
         );
 
         // give owner 1000 WETH
-        const amountToConvert = ethers.parseEther("1000");
+        const amountToConvert = ethers.parseEther("100");
 
         // Ensure the balance is sufficient
         await weth.connect(owner).deposit({value: amountToConvert});
@@ -71,21 +71,25 @@ describe("PolicyMaker", function () {
         });
         it("Should be able to get correct investment fund", async function () {
             const ownerBalanceBefore = await weth.balanceOf(await owner.getAddress());
-            const initPremiumFee = ethers.parseEther("10");
+            const initPremiumFee = ethers.parseEther("100");
             await policyMaker.connect(owner).payPremium(1, initPremiumFee);
             const ownerBalanceAfter = await weth.balanceOf(await owner.getAddress());
             expect(ownerBalanceBefore).to.be.greaterThan(ownerBalanceAfter);
         });
         it.only("should increase aWETH balance after 1 year", async function () {
+            const initPremiumFee = ethers.parseEther("10");
+            await policyMaker.connect(owner).payCustomPremium(1, 50, initPremiumFee);
             const initialAWethBalance = await aWeth.balanceOf(policyMakerAddress);
             const ownerBalanceBefore = await weth.balanceOf(policyMakerAddress);
             console.log("weth policymaker balance before investing.", ethers.formatEther(ownerBalanceBefore));
             const investmentFundBalance = await policyMaker.investmentFundBalance(1);
             console.log(investmentFundBalance);
             // Invest in Aave Pool
-            // Retrieve reserve data for WETH
-            // const reserveData = await poolContract.getReserveData(wethAddress);
-            await policyMaker.connect(owner).investInAavePool(investmentFundBalance);
+            const reserveDataBefore = await poolContract.getReserveData(wethAddress);
+            const depositLiquidityIndex = reserveDataBefore.liquidityIndex
+            
+            
+            await policyMaker.connect(owner).investInAavePool(1, investmentFundBalance / ethers.parseUnits("2", 0));
             const ownerBalanceAfter = await weth.balanceOf(policyMakerAddress);
             console.log("weth owner balance after investing.", ethers.formatEther(ownerBalanceAfter));
 
@@ -95,8 +99,16 @@ describe("PolicyMaker", function () {
             await ethers.provider.send("evm_mine");
 
 
-            const reserveDataBefore = await poolContract.getReserveData(wethAddress);
-            console.log(reserveDataBefore);
+            const reserveDataAfter = await poolContract.getReserveData(wethAddress);
+            // Calculate accrued aWETH
+            const currentLiquidityIndex = reserveDataAfter.liquidityIndex;
+            console.log(ethers.formatEther(currentLiquidityIndex));
+            // Calculate accrued interest
+            const accruedInterest = currentLiquidityIndex * investmentFundBalance / depositLiquidityIndex - investmentFundBalance;
+            console.log("accruedInterest", ethers.formatEther(accruedInterest));
+            // const depositLiquidityIndex = reserveDataAfter.depositLiquidityIndex;
+            // const accruedAWETH = (currentLiquidityIndex / depositLiquidityIndex) * investmentFundBalance;
+            // console.log(accruedAWETH);
             // Check aWETH balance
             const finalAWethBalance = await aWeth.balanceOf(policyMakerAddress);
             console.log(finalAWethBalance);

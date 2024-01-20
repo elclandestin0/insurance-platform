@@ -192,8 +192,8 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
 
         // Regular premium split based on policy's fund percentages
         premiumForCoverageFund = (amount * policies[_policyId].coverageFundPercentage) / 100;
-        premiumForInvestmentFund = amount - premiumForCoverageFund; 
-        
+        premiumForInvestmentFund = amount - premiumForCoverageFund;
+
         // Safely update fund balances
         coverageFundBalance[_policyId] += premiumForCoverageFund; // Safe add
         investmentFundBalance[_policyId] += premiumForInvestmentFund; // Safe add
@@ -212,6 +212,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         require(policies[_policyId].isActive, "Policy is not active");
         require(investmentFundPercentage <= 100, "Invalid percentage value");
         require(calculateTotalCoverage(_policyId, msg.sender) >= policies[_policyId].coverageAmount, "Coverage is not yet complete");
+        require(weth.transferFrom(msg.sender, address(this), amount), "WETH transfer failed");
 
         // Calculate the allocation of the premium based on the specified percentages
         uint256 premiumForInvestmentFund = (amount * investmentFundPercentage) / 100;
@@ -500,10 +501,12 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     }
 
     // Aave pool functions
-    function investInAavePool(uint256 amount) external {
+    function investInAavePool(uint32 policyId, uint256 amount) external {
         require(IERC20(WETH_ADDRESS).balanceOf(address(this)) >= amount, "Insufficient WETH balance");
+        require(investmentFundBalance[policyId] > amount, "Insufficient investment funds!");
         IERC20(WETH_ADDRESS).approve(address(lendingPool), amount);
         lendingPool.supply(WETH_ADDRESS, amount, address(this), 0);
+        investmentFundBalance[policyId] -= amount;
     }
 
     function withdrawFromAavePool(address asset, uint256 amount) external {
