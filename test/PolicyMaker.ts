@@ -3,7 +3,7 @@ import {expect} from "chai";
 import {IERC20, PolicyMaker, WETH, IPool} from "../typechain";
 import {Signer} from "ethers";
 import {AToken} from "@aave/core-v3/dist/types/types/protocol/tokenization/";
-import {AToken__factory} from "@aave/core-v3/dist/types/types";
+import {AToken__factory} from "@aave/core-v3/dist/types/types/factories/protocol/tokenization/AToken__factory";
 
 const IERC20_ABI = require('../artifacts/contracts/IERC20.sol/IERC20.json');
 
@@ -14,7 +14,7 @@ describe("PolicyMaker", function () {
     let aWeth: AToken;
     let owner: Signer, addr1: Signer;
     let policyId: any;
-    const policyMakerAddress = "0xf524930660f75CF602e909C15528d58459AB2A56";
+    const policyMakerAddress = "0x6c383Ef7C9Bf496b5c847530eb9c49a3ED6E4C56";
     const wethAddress = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
     const aWethAddress = "0x030bA81f1c18d280636F32af80b9AAd02Cf0854e";
     const poolAddress = "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2";
@@ -31,8 +31,7 @@ describe("PolicyMaker", function () {
 
         // Maybe delete later?
         const AWETH = new AToken__factory();
-        aWeth = AWETH.attach('0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2')
-
+        aWeth = AWETH.attach('0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2');
         poolContract = await ethers.getContractAt('IPool', poolAddress);
         const tx = await policyMaker.createPolicy(
             ethers.parseEther("100"),
