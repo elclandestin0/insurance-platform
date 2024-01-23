@@ -146,7 +146,6 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
 
     // Payments section
     function payInitialPremium(uint32 _policyId, uint256 amount) public {
-        console.log("belloo");
         require(
             !isPolicyOwner(_policyId, msg.sender),
             "Already a claimant of this policy"
@@ -156,7 +155,6 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
             amount >= policies[_policyId].initialPremiumFee,
             "Can't afford the rate!"
         );
-        console.log("hello");
         // Transfer WETH from the user to the contract
         require(weth.transferFrom(msg.sender, address(this), amount), "WETH transfer failed");
 
@@ -307,21 +305,27 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         uint256 _inputPremium
     ) public view returns (uint256) {
         require(policies[_policyId].isActive, "Policy is not active");
+        require(calculateTotalCoverage(_policyId, _policyHolder) < policies[_policyId].coverageAmount, "You are already covered!");
+        
         uint256 currentTotalCoverage = calculateTotalCoverage(
             _policyId,
             _policyHolder
         );
-        uint256 additionalCoverage = (_inputPremium *
-            calculateDynamicCoverageFactor(
-                _policyId,
-                _policyHolder,
-                _inputPremium
-            ));
-        uint256 bonusCoverage = policies[_policyId].coverageAmount - additionalCoverage;
-        uint256 potentialCoverage = currentTotalCoverage + additionalCoverage;
+        
+        uint256 dynamicCoverageFactor = calculateDynamicCoverageFactor(
+            _policyId,
+            _policyHolder,
+            _inputPremium
+        );
+
+        (, uint256 additionalCoverage) = _inputPremium.tryMul(dynamicCoverageFactor);
+        (, uint256 potentialCoverage) = currentTotalCoverage.tryAdd(additionalCoverage);
+        (, uint256 bonusCoverage) = policies[_policyId].coverageAmount.tryMul(2);
+        (, uint256 netAdditionalCoverage) = policies[_policyId].coverageAmount.trySub(additionalCoverage);
+        
         return
             (potentialCoverage >= policies[_policyId].coverageAmount)
-                ? policies[_policyId].coverageAmount - additionalCoverage >= 0 ? additionalCoverage : policies[_policyId].coverageAmount * 2
+                ? netAdditionalCoverage >= 0 ? additionalCoverage : bonusCoverage
                 : potentialCoverage;
     }
 
@@ -505,7 +509,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         require(IERC20(WETH_ADDRESS).balanceOf(address(this)) >= amount, "Insufficient WETH balance");
         require(investmentFundBalance[policyId] > amount, "Insufficient investment funds!");
         IERC20(WETH_ADDRESS).approve(address(lendingPool), amount);
-        lendingPool.supply(WETH_ADDRESS, amount, address(this), 0);
+        lendingPool.deposit(WETH_ADDRESS, amount, address(this), 0);
         investmentFundBalance[policyId] -= amount;
     }
 
