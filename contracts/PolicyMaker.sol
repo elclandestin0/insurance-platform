@@ -326,7 +326,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         uint256 additionalCoverage = calculateAdditionalCoverage(
             _policyId,
             _policyHolder,
-            _inputPremium + coverageFunded[_policyId][_policyHolder]
+            _inputPremium
         );
 
         uint256 potentialCoverage = currentTotalCoverage + additionalCoverage;
