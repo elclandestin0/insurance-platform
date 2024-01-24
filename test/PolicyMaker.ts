@@ -12,7 +12,7 @@ describe("PolicyMaker", function () {
     let aWeth: IERC20;
     let owner: Signer, addr1: Signer;
     let policyId: any;
-    const policyMakerAddress = "0xe519389F8c262d4301Fd2830196FB7D0021daf59";
+    const policyMakerAddress = "0x41219a0a9C0b86ED81933c788a6B63Dfef8f17eE";
     const wethAddress = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
     const aWethAddress = "0x030bA81f1c18d280636F32af80b9AAd02Cf0854e";
     const poolAddress = "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2";

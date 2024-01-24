@@ -210,6 +210,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         require(policies[_policyId].isActive, "Policy is not active");
         require(investmentFundPercentage <= 100, "Invalid percentage value");
         require(calculateTotalCoverage(_policyId, msg.sender) >= policies[_policyId].coverageAmount, "Coverage is not yet complete");
+        require(calculateTotalCoverage(_policyId, msg.sender) < policies[_policyId].coverageAmount * 2, "Maximum bonus coverage reached.");
         require(weth.transferFrom(msg.sender, address(this), amount), "WETH transfer failed");
 
         // Calculate the allocation of the premium based on the specified percentages
@@ -298,35 +299,38 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         return premium;
     }
 
-    // This function is used to check the potential coverage as the user is inputting the amount in premium
     function calculatePotentialCoverage(
         uint32 _policyId,
         address _policyHolder,
         uint256 _inputPremium
     ) public view returns (uint256) {
         require(policies[_policyId].isActive, "Policy is not active");
-        require(calculateTotalCoverage(_policyId, _policyHolder) < policies[_policyId].coverageAmount, "You are already covered!");
-        
+        require(calculateTotalCoverage(_policyId, _policyHolder) < policies[_policyId].coverageAmount, "You are already fully covered!");
+
         uint256 currentTotalCoverage = calculateTotalCoverage(
             _policyId,
             _policyHolder
         );
-        
-        uint256 dynamicCoverageFactor = calculateDynamicCoverageFactor(
+
+        uint256 maxAllowedCoverage = policies[_policyId].coverageAmount * 2;
+        if (currentTotalCoverage >= maxAllowedCoverage) {
+            return maxAllowedCoverage;
+        }
+
+        uint256 additionalCoverage = calculateAdditionalCoverage(
             _policyId,
             _policyHolder,
-            _inputPremium
+            _inputPremium + premiumsPaid[_policyId][_policyHolder]
         );
 
-        (, uint256 additionalCoverage) = _inputPremium.tryMul(dynamicCoverageFactor);
-        (, uint256 potentialCoverage) = currentTotalCoverage.tryAdd(additionalCoverage);
-        (, uint256 bonusCoverage) = policies[_policyId].coverageAmount.tryMul(2);
-        (, uint256 netAdditionalCoverage) = policies[_policyId].coverageAmount.trySub(additionalCoverage);
-        
-        return
-            (potentialCoverage >= policies[_policyId].coverageAmount)
-                ? netAdditionalCoverage >= 0 ? additionalCoverage : bonusCoverage
-                : potentialCoverage;
+        uint256 potentialCoverage = currentTotalCoverage + additionalCoverage;
+
+        // Cap the potential coverage at double the policy coverage amount
+        if (potentialCoverage > maxAllowedCoverage) {
+            potentialCoverage = maxAllowedCoverage;
+        }
+
+        return potentialCoverage;
     }
 
     function calculateTotalCoverage(
@@ -341,37 +345,18 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
             premiumsPaid[_policyId][_policyHolder]
         );
 
-        (, uint256 totalCoverage) = initialCoverage.tryAdd(additionalCoverage);
+        uint256 totalCoverage = initialCoverage + additionalCoverage;
         if (amountClaimed[_policyId][_policyHolder] > totalCoverage) {
             return 0;
         }
-
-        // Subtract the claimed amount from the total coverage
-        (, uint256 netCoverageClaimed) = totalCoverage.trySub(amountClaimed[_policyId][_policyHolder]);
-
-        // Calculate bonus coverage if any
-        uint256 bonusCoverage = policies[_policyId].coverageAmount;
-        if (coverageFunded[_policyId][_policyHolder] > 0) {
-            uint256 additionalCoverageForBonus = calculateAdditionalCoverage(
-                _policyId,
-                _policyHolder,
-                coverageFunded[_policyId][_policyHolder]
-            );
-            if (bonusCoverage > additionalCoverageForBonus) {
-                (, bonusCoverage) = bonusCoverage.trySub(additionalCoverageForBonus);
-            } else {
-                bonusCoverage = 0;
-            }
+        uint256 netCoverage = totalCoverage - amountClaimed[_policyId][_policyHolder];
+        
+        uint256 maxCoverage = policies[_policyId].coverageAmount * 2;
+        if (netCoverage > maxCoverage) {
+            netCoverage = maxCoverage;
         }
 
-        // Check if total coverage exceeds policy coverage amount
-        if (netCoverageClaimed >= policies[_policyId].coverageAmount) {
-            // Here, add logic to calculate true coverage beyond policy coverage * 2
-            uint256 excessCoverage = netCoverageClaimed - policies[_policyId].coverageAmount;
-            return policies[_policyId].coverageAmount + excessCoverage + bonusCoverage;
-        } else {
-            return netCoverageClaimed;
-        }
+        return netCoverage;
     }
 
     function calculateInitialCoverage(
