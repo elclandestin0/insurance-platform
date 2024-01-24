@@ -30,7 +30,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
 
     // Dead code .. for now. 
     address private payoutContract;
-    
+
     // Policy queries
     mapping(uint32 => Policy) public policies;
     mapping(uint32 => uint256) public coverageFundBalance;
@@ -46,10 +46,10 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     mapping(uint32 => mapping(address => uint32)) public timesPaid;
     mapping(uint32 => mapping(address => uint256)) public lastPremiumPaidTime;
     mapping(uint32 => mapping(address => uint256)) public amountClaimed;
-    
+
     // Policy ID
     uint32 public nextPolicyId = 1;
-    
+
     // Aave set-up
     IPoolAddressesProvider private addressesProvider;
     IPool private lendingPool;
@@ -356,7 +356,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
             return 0;
         }
         uint256 netCoverage = totalCoverage - amountClaimed[_policyId][_policyHolder];
-        
+
         uint256 maxCoverage = policies[_policyId].coverageAmount * 2;
         if (netCoverage > maxCoverage) {
             netCoverage = maxCoverage;
@@ -383,12 +383,8 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
             _policyHolder,
             _inputPremium
         );
-        if (_inputPremium <= policies[_policyId].initialPremiumFee) {
-            return 0;
-        }
         return
-            (_inputPremium - policies[_policyId].initialPremiumFee) *
-            coverageFactor;
+            _inputPremium * coverageFactor;
     }
 
     function calculateDynamicCoverageFactor(
