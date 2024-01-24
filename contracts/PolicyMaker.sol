@@ -28,8 +28,17 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         uint256 startTime;
     }
 
+    // Dead code .. for now. 
     address private payoutContract;
+    
+    // Policy queries
     mapping(uint32 => Policy) public policies;
+    mapping(uint32 => uint256) public coverageFundBalance;
+    mapping(uint32 => uint256) public investmentFundBalance;
+    mapping(uint32 => mapping(address => uint256)) public coverageFundTokenBalance;
+    mapping(uint32 => mapping(address => uint256)) public investmentFundTokenBalance;
+
+    // User queries
     mapping(uint32 => mapping(address => bool)) public policyOwners;
     mapping(uint32 => mapping(address => uint256)) public premiumsPaid;
     mapping(uint32 => mapping(address => uint256)) public coverageFunded;
@@ -37,12 +46,10 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     mapping(uint32 => mapping(address => uint32)) public timesPaid;
     mapping(uint32 => mapping(address => uint256)) public lastPremiumPaidTime;
     mapping(uint32 => mapping(address => uint256)) public amountClaimed;
+    
+    // Policy ID
     uint32 public nextPolicyId = 1;
-    mapping(uint32 => uint256) public coverageFundBalance;
-    mapping(uint32 => uint256) public investmentFundBalance;
-    mapping(uint32 => mapping(address => uint256)) public coverageFundTokenBalance;
-    mapping(uint32 => mapping(address => uint256)) public investmentFundTokenBalance;
-
+    
     // Aave set-up
     IPoolAddressesProvider private addressesProvider;
     IPool private lendingPool;
@@ -209,13 +216,12 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         require(isPolicyOwner(_policyId, msg.sender), "Not a policy owner");
         require(policies[_policyId].isActive, "Policy is not active");
         require(investmentFundPercentage <= 100, "Invalid percentage value");
-        require(calculateTotalCoverage(_policyId, msg.sender) >= policies[_policyId].coverageAmount, "Coverage is not yet complete");
         require(calculateTotalCoverage(_policyId, msg.sender) < policies[_policyId].coverageAmount * 2, "Maximum bonus coverage reached.");
         require(weth.transferFrom(msg.sender, address(this), amount), "WETH transfer failed");
 
         // Calculate the allocation of the premium based on the specified percentages
-        uint256 premiumForInvestmentFund = (amount * investmentFundPercentage) / 100;
-        uint256 premiumForCoverageFund = amount - premiumForInvestmentFund;
+        uint256 premiumForInvestmentFund = calculateTotalCoverage(_policyId, msg.sender) < policies[_policyId].coverageAmount * 2 ? (amount * investmentFundPercentage) / 100 : amount;
+        uint256 premiumForCoverageFund = calculateTotalCoverage(_policyId, msg.sender) < policies[_policyId].coverageAmount * 2 ? amount - premiumForInvestmentFund : 0;
 
         // Ensure premium allocation does not exceed the paid amount
         premiumForInvestmentFund = (premiumForInvestmentFund > amount) ? amount : premiumForInvestmentFund;
@@ -320,7 +326,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         uint256 additionalCoverage = calculateAdditionalCoverage(
             _policyId,
             _policyHolder,
-            _inputPremium + premiumsPaid[_policyId][_policyHolder]
+            _inputPremium + coverageFunded[_policyId][_policyHolder]
         );
 
         uint256 potentialCoverage = currentTotalCoverage + additionalCoverage;
@@ -342,7 +348,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         uint256 additionalCoverage = calculateAdditionalCoverage(
             _policyId,
             _policyHolder,
-            premiumsPaid[_policyId][_policyHolder]
+            coverageFunded[_policyId][_policyHolder]
         );
 
         uint256 totalCoverage = initialCoverage + additionalCoverage;
