@@ -12,7 +12,7 @@ describe("PolicyMaker", function () {
     let aWeth: IERC20;
     let owner: Signer, addr1: Signer;
     let policyId: any;
-    const policyMakerAddress = "0x0462Bc7390a33C8BB748d5c2ad76E93690A365c5";
+    const policyMakerAddress = "0xb9b0c96e4E7181926D2A7ed331C9C346dfa59b4D";
     const wethAddress = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
     const aWethAddress = "0x030bA81f1c18d280636F32af80b9AAd02Cf0854e";
     const poolAddress = "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2";
@@ -69,23 +69,26 @@ describe("PolicyMaker", function () {
             const ownerBalanceAfter = await weth.balanceOf(await owner.getAddress());
             expect(ownerBalanceBefore).to.be.greaterThan(ownerBalanceAfter);
         });
-        it("Should increase premium rate according to the penalty rate after time passes towards the months grace period", async function () {
-            const oneYearInSeconds = 500 * 24 * 60 * 60;
+        it("Should increase premium", async function () {
+            const oneYearInSeconds = 3 * 24 * 60 * 60;
             await ethers.provider.send("evm_increaseTime", [oneYearInSeconds]);
             await ethers.provider.send("evm_mine");
             const premiumRate = await policyMaker.calculatePremium(policyId, owner.address);
             console.log("the accumulated premium rate is: " + ethers.formatEther(premiumRate))
         });
-        it("Should be able to get correct investment fund", async function () {
-            const ownerBalanceBefore = await weth.balanceOf(await owner.getAddress());
-            const initPremiumFee = ethers.parseEther("30");
-            const potentialCoverage = await policyMaker.calculatePotentialCoverage(policyId, owner.address, initPremiumFee);
-            console.log("Potential covearge with initial premium of 30 weth. ", ethers.formatEther(potentialCoverage));
-            await policyMaker.connect(owner).payPremium(policyId, initPremiumFee);
-            const totalCoverage = await policyMaker.calculateTotalCoverage(policyId, owner.address);
-            console.log(ethers.formatEther(totalCoverage));
-            const ownerBalanceAfter = await weth.balanceOf(await owner.getAddress());
-            expect(ownerBalanceBefore).to.be.greaterThan(ownerBalanceAfter);
+        it("Should fail when paying the premium with an amount < calculatedPremium", async function () {
+            const premiumFee = ethers.parseEther("1");
+            await expect(policyMaker.connect(owner).payPremium(policyId, premiumFee)).to.be.revertedWith("Amount needs to be higher than the calculated premium!");
+        });
+        it("Should succeed when paying the correct premium rate", async function () {
+            const oneYearInSeconds = 365 * 24 * 60 * 60;
+            await ethers.provider.send("evm_increaseTime", [oneYearInSeconds]);
+            await ethers.provider.send("evm_mine");
+            const premiumRate = await policyMaker.calculatePremium(policyId, owner.address);
+            console.log("the accumulated premium rate is: " + ethers.formatEther(premiumRate));
+            await policyMaker.connect(owner).payPremium(policyId, premiumRate);
+            const newPremiumRequired = await policyMaker.calculatePremium(policyId, owner.address);
+            expect(ethers.formatEther(newPremiumRequired)).to.eq('0.0');
         });
         it.skip("Should increase aWETH balance after 1 year", async function () {
             const initPremiumFee = ethers.parseEther("100");

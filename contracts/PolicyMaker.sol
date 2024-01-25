@@ -286,8 +286,8 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         uint256 timeElapsed = block.timestamp -
                             lastPremiumPaidTime[_policyId][_policyHolder];
         uint256 daysElapsed = timeElapsed / 60 / 60 / 24;
-
         uint256 dailyRate = policies[_policyId].premiumRate / 30;
+
         // Assuming premiumRate is monthly
         uint256 duePremium = daysElapsed * dailyRate;
         uint256 premium = policies[_policyId].premiumRate;
@@ -301,7 +301,10 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
                                 policies[_policyId].monthsGracePeriod;
             premium += (premium * penaltyRate * penaltyMonths) / 100;
         }
-        return premium;
+
+        // Subtract by the total premiums paid.
+        uint256 netPremiumsPaid = premiumsPaid[_policyId][_policyHolder] - policies[_policyId].initialPremiumFee;
+        return premium - netPremiumsPaid;
     }
 
     function calculatePotentialCoverage(
