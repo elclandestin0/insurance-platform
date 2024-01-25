@@ -12,7 +12,7 @@ describe("PolicyMaker", function () {
     let aWeth: IERC20;
     let owner: Signer, addr1: Signer;
     let policyId: any;
-    const policyMakerAddress = "0x2ce1F0e20C1f69E9d9AEA83b25F0cEB69e2AA2b5";
+    const policyMakerAddress = "0xD962a5F050A5F0a2f8dF82aFc04CF1afFE585082";
     const wethAddress = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
     const aWethAddress = "0x030bA81f1c18d280636F32af80b9AAd02Cf0854e";
     const poolAddress = "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2";
@@ -22,7 +22,8 @@ describe("PolicyMaker", function () {
         [owner, addr1] = await ethers.getSigners();
         const PolicyMaker = await ethers.getContractFactory("PolicyMaker");
         policyMaker = PolicyMaker.attach(policyMakerAddress);
-        policyId = ethers.parseUnits('1', 0);
+        policyId = await policyMaker.nextPolicyId();
+        console.log(policyId);
 
         const WETH = await ethers.getContractFactory('WETH');
         weth = WETH.attach(wethAddress);
@@ -31,14 +32,14 @@ describe("PolicyMaker", function () {
         poolContract = await ethers.getContractAt('IPool', poolAddress);
         const tx = await policyMaker.createPolicy(
             ethers.parseEther("100"),
-            ethers.parseEther("10"),
+            ethers.parseEther("1"),
             5,
             ethers.parseEther("5"),
             365,
             20,
             6,
-            75,
-            25
+            100,
+            0
         );
 
         // give owner 1000 WETH
@@ -56,27 +57,41 @@ describe("PolicyMaker", function () {
         console.log("weth owner balance. ready to go.", ethers.formatEther(ownerBalance));
     });
     describe("Aave Pool Integration", function () {
-        it("Should fail when we cannot afford the premium rate", async function () {
-            const initPremiumFee = ethers.parseEther("2");
-            await expect(policyMaker.payInitialPremium(1, initPremiumFee)).to.be.revertedWith("Can't afford the rate!");
+        it.skip("Should fail when we cannot afford the premium rate", async function () {
+            const initPremiumFee = ethers.parseEther("0.5");
+            await expect(policyMaker.payInitialPremium(policyId)).to.be.revertedWith("Can't afford the rate!");
         });
         it("Should be able to pay initial premium and decrease my WETH balance", async function () {
             const ownerBalanceBefore = await weth.balanceOf(await owner.getAddress());
-            const initPremiumFee = ethers.parseEther("10");
-            await policyMaker.connect(owner).payInitialPremium(1, initPremiumFee);
+            await policyMaker.connect(owner).payInitialPremium(policyId);
+            const totalCoverage = await policyMaker.calculateTotalCoverage(policyId, owner.address);
+            console.log("Total covearge with initial premium of 1 weth. ", ethers.formatEther(totalCoverage));
             const ownerBalanceAfter = await weth.balanceOf(await owner.getAddress());
             expect(ownerBalanceBefore).to.be.greaterThan(ownerBalanceAfter);
         });
-        it.skip("Should be able to get correct investment fund", async function () {
+        it("Should be able to get correct investment fund", async function () {
             const ownerBalanceBefore = await weth.balanceOf(await owner.getAddress());
-            console.log(ownerBalanceBefore);
-            const initPremiumFee = ethers.parseEther("100");
-            await policyMaker.connect(owner).payPremium(1, initPremiumFee);
+            const initPremiumFee = ethers.parseEther("30");
+            const potentialCoverage = await policyMaker.calculatePotentialCoverage(policyId, owner.address, initPremiumFee);
+            console.log("Potential covearge with initial premium of 30 weth. ", ethers.formatEther(potentialCoverage));
+            await policyMaker.connect(owner).payPremium(policyId, initPremiumFee);
+            const totalCoverage = await policyMaker.calculateTotalCoverage(policyId, owner.address);
+            console.log(ethers.formatEther(totalCoverage));
             const ownerBalanceAfter = await weth.balanceOf(await owner.getAddress());
-            console.log(ownerBalanceAfter);
             expect(ownerBalanceBefore).to.be.greaterThan(ownerBalanceAfter);
         });
-        it.skip("should increase aWETH balance after 1 year", async function () {
+        it("Should be able to get correct investment fund", async function () {
+            const ownerBalanceBefore = await weth.balanceOf(await owner.getAddress());
+            const initPremiumFee = ethers.parseEther("1");
+            const potentialCoverage = await policyMaker.calculatePotentialCoverage(policyId, owner.address, initPremiumFee);
+            console.log("Potential covearge with initial premium of 1 weth. ", ethers.formatEther(potentialCoverage));
+            await policyMaker.connect(owner).payPremium(policyId, initPremiumFee);
+            const totalCoverage = await policyMaker.calculateTotalCoverage(policyId, owner.address);
+            console.log(ethers.formatEther(totalCoverage));
+            const ownerBalanceAfter = await weth.balanceOf(await owner.getAddress());
+            expect(ownerBalanceBefore).to.be.greaterThan(ownerBalanceAfter);
+        });
+        it.skip("Should increase aWETH balance after 1 year", async function () {
             const initPremiumFee = ethers.parseEther("100");
             await policyMaker.connect(owner).payCustomPremium(1, 50, initPremiumFee);
             const ownerBalanceBefore = await weth.balanceOf(policyMakerAddress);
@@ -84,12 +99,12 @@ describe("PolicyMaker", function () {
             let investmentFundBalance = await policyMaker.investmentFundBalance(1);
             const aWethBalanceBefore = await aWeth.balanceOf(policyMakerAddress);
             console.log(ethers.formatEther(aWethBalanceBefore));
-            
+
             // Invest in Aave Pool
             const reserveDataBefore = await poolContract.getReserveData(wethAddress);
             console.log("liquidity index before: ", ethers.formatEther(reserveDataBefore.liquidityIndex));
             await policyMaker.connect(owner).investInAavePool(1, investmentFundBalance / ethers.parseUnits("2", 0));
-            
+
             // Fast-forward time by 1 year
             const oneYearInSeconds = 365 * 24 * 60 * 60;
             await ethers.provider.send("evm_increaseTime", [oneYearInSeconds]);

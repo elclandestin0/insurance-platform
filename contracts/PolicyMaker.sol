@@ -152,34 +152,30 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     }
 
     // Payments section
-    function payInitialPremium(uint32 _policyId, uint256 amount) public {
+    function payInitialPremium(uint32 _policyId) public {
         require(
             !isPolicyOwner(_policyId, msg.sender),
             "Already a claimant of this policy"
         );
         require(policies[_policyId].isActive, "Policy is not active");
-        require(
-            amount >= policies[_policyId].initialPremiumFee,
-            "Can't afford the rate!"
-        );
         // Transfer WETH from the user to the contract
-        require(weth.transferFrom(msg.sender, address(this), amount), "WETH transfer failed");
+        require(weth.transferFrom(msg.sender, address(this), policies[_policyId].initialPremiumFee), "WETH transfer failed");
 
         // Store premiums paid for the account
-        premiumsPaid[_policyId][msg.sender] += amount;
+        premiumsPaid[_policyId][msg.sender] += policies[_policyId].initialPremiumFee;
         policyOwners[_policyId][msg.sender] = true;
         lastPremiumPaidTime[_policyId][msg.sender] = block.timestamp;
 
         // Calculate coverage and investment amount to add them to the fund
         coverageFundBalance[_policyId] +=
-            (amount * policies[_policyId].coverageFundPercentage) /
+            (policies[_policyId].initialPremiumFee * policies[_policyId].coverageFundPercentage) /
             100;
         investmentFundBalance[_policyId] +=
-            (amount * policies[_policyId].investmentFundPercentage) /
+            (policies[_policyId].initialPremiumFee * policies[_policyId].investmentFundPercentage) /
             100;
-        coverageFunded[_policyId][msg.sender] += (amount * policies[_policyId].coverageFundPercentage) / 100;
-        investmentFunded[_policyId][msg.sender] += (amount * policies[_policyId].investmentFundPercentage) / 100;
-        emit PremiumPaid(_policyId, msg.sender, amount, true);
+        coverageFunded[_policyId][msg.sender] += (policies[_policyId].initialPremiumFee * policies[_policyId].coverageFundPercentage) / 100;
+        investmentFunded[_policyId][msg.sender] += (policies[_policyId].initialPremiumFee * policies[_policyId].investmentFundPercentage) / 100;
+        emit PremiumPaid(_policyId, msg.sender, policies[_policyId].initialPremiumFee, true);
     }
 
     function payPremium(uint32 _policyId, uint256 amount) public payable {
@@ -308,7 +304,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     function calculatePotentialCoverage(
         uint32 _policyId,
         address _policyHolder,
-        uint256 _inputPremium
+        uint256 _amount
     ) public view returns (uint256) {
         require(policies[_policyId].isActive, "Policy is not active");
         require(calculateTotalCoverage(_policyId, _policyHolder) < policies[_policyId].coverageAmount, "You are already fully covered!");
@@ -326,7 +322,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         uint256 additionalCoverage = calculateAdditionalCoverage(
             _policyId,
             _policyHolder,
-            _inputPremium
+            (_amount * policies[_policyId].coverageFundPercentage) / 100
         );
 
         uint256 potentialCoverage = currentTotalCoverage + additionalCoverage;
@@ -345,18 +341,25 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     ) public view returns (uint256) {
         require(policies[_policyId].isActive, "Policy is not active");
         uint256 initialCoverage = calculateInitialCoverage(_policyId);
+        console.log("coverage funded ", coverageFunded[_policyId][_policyHolder]);
+        console.log("inital premium fee size", (policies[_policyId].initialPremiumFee * policies[_policyId].coverageFundPercentage) / 100);
+        if (coverageFunded[_policyId][_policyHolder] == (policies[_policyId].initialPremiumFee * policies[_policyId].coverageFundPercentage) / 100)
+        {
+            return initialCoverage;
+        }
+
         uint256 additionalCoverage = calculateAdditionalCoverage(
             _policyId,
             _policyHolder,
-            coverageFunded[_policyId][_policyHolder]
+            coverageFunded[_policyId][_policyHolder] - ((policies[_policyId].initialPremiumFee * policies[_policyId].coverageFundPercentage) / 100)
         );
-
+        console.log("additional coverage", additionalCoverage);
         uint256 totalCoverage = initialCoverage + additionalCoverage;
         if (amountClaimed[_policyId][_policyHolder] > totalCoverage) {
             return 0;
         }
-        uint256 netCoverage = totalCoverage - amountClaimed[_policyId][_policyHolder];
 
+        uint256 netCoverage = totalCoverage - amountClaimed[_policyId][_policyHolder];
         uint256 maxCoverage = policies[_policyId].coverageAmount * 2;
         if (netCoverage > maxCoverage) {
             netCoverage = maxCoverage;
@@ -376,16 +379,19 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     function calculateAdditionalCoverage(
         uint32 _policyId,
         address _policyHolder,
-        uint256 _inputPremium
+        uint256 _amount
     ) internal view returns (uint256) {
-        uint256 coverageFactor = calculateDynamicCoverageFactor(
-            _policyId,
-            _policyHolder,
-            _inputPremium
-        );
-        return
-            _inputPremium * coverageFactor;
+        // Ensure the amount is greater than the initial premium fee
+        if (_amount <= policies[_policyId].initialPremiumFee) {
+            return 0;
+        }
+
+        // Apply the dynamic coverage factor to the additional premium
+        uint256 additionalCoverage = _amount * calculateDynamicCoverageFactor(_policyId, _policyHolder, _amount);
+
+        return additionalCoverage;
     }
+
 
     function calculateDynamicCoverageFactor(
         uint32 _policyId,
