@@ -158,6 +158,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
             "Already a claimant of this policy"
         );
         require(policies[_policyId].isActive, "Policy is not active");
+        require(weth.balanceOf(msg.sender) > policies[_policyId].initialPremiumFee, "Insufficient funds!");
         // Transfer WETH from the user to the contract
         require(weth.transferFrom(msg.sender, address(this), policies[_policyId].initialPremiumFee), "WETH transfer failed");
 
@@ -182,6 +183,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         require(isPolicyOwner(_policyId, msg.sender), "Not a policy owner");
         require(policies[_policyId].isActive, "Policy is not active");
         require(calculateTotalCoverage(_policyId, msg.sender) < policies[_policyId].coverageAmount, "Full coverage achieved, use payCustomPremium");
+        require(amount >= calculatePremium(_policyId, msg.sender), "Amount needs to be higher than the calculated premium!");
 
         // Transfer WETH from the user to the contract
         require(weth.transferFrom(msg.sender, address(this), amount), "WETH transfer failed");
@@ -214,6 +216,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         require(investmentFundPercentage <= 100, "Invalid percentage value");
         require(calculateTotalCoverage(_policyId, msg.sender) < policies[_policyId].coverageAmount * 2, "Maximum bonus coverage reached.");
         require(weth.transferFrom(msg.sender, address(this), amount), "WETH transfer failed");
+        require(amount >= calculatePremium(_policyId, msg.sender), "Amount needs to be higher than the calculated premium!");
 
         // Calculate the allocation of the premium based on the specified percentages
         uint256 premiumForInvestmentFund = calculateTotalCoverage(_policyId, msg.sender) < policies[_policyId].coverageAmount * 2 ? (amount * investmentFundPercentage) / 100 : amount;
