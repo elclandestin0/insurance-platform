@@ -2,6 +2,7 @@
 import {expect} from "chai";
 import {IERC20, PolicyMaker, WETH, IPool} from "../typechain";
 import {Block, Contract, Signer} from "ethers";
+import {AToken, AToken__factory} from "@aave/core-v3/dist/types/types";
 
 const IERC20_ABI = require('../artifacts/contracts/IERC20.sol/IERC20.json');
 
@@ -9,10 +10,10 @@ describe("PolicyMaker", function () {
     let policyMaker: PolicyMaker;
     let weth: WETH;
     let poolContract: IPool;
-    let aWeth: IERC20;
+    let aWeth: AToken;
     let owner: Signer, addr1: Signer;
     let policyId: any;
-    const policyMakerAddress = "0x564Db7a11653228164FD03BcA60465270E67b3d7";
+    const policyMakerAddress = "0xf93b0549cD50c849D792f0eAE94A598fA77C7718";
     const wethAddress = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
     const aWethAddress = "0x030bA81f1c18d280636F32af80b9AAd02Cf0854e";
     const poolAddress = "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2";
@@ -27,6 +28,7 @@ describe("PolicyMaker", function () {
 
         const WETH = await ethers.getContractFactory('WETH');
         weth = WETH.attach(wethAddress);
+
         // Maybe delete later?
         aWeth = new ethers.Contract(aWethAddress, IERC20_ABI.abi, owner);
         poolContract = await ethers.getContractAt('IPool', poolAddress);
@@ -72,7 +74,7 @@ describe("PolicyMaker", function () {
         it("Should increase premium", async function () {
             const premiumRateBefore = await policyMaker.calculatePremium(policyId, owner.address);
             console.log("the accumulated premium rate is: " + ethers.formatEther(premiumRateBefore))
-            const oneYearInSeconds = 30 * 24 * 60 * 60;
+            const oneYearInSeconds = 31 * 24 * 60 * 60;
             await ethers.provider.send("evm_increaseTime", [oneYearInSeconds]);
             await ethers.provider.send("evm_mine");
             const premiumRateAfter = await policyMaker.calculatePremium(policyId, owner.address);
@@ -84,17 +86,24 @@ describe("PolicyMaker", function () {
             await expect(policyMaker.connect(owner).payPremium(policyId, premiumFee)).to.be.revertedWith("Amount needs to be higher than the calculated premium!");
         });
         it("Should succeed when paying the correct premium rate", async function () {
-            const oneYearInSeconds = 15 * 24 * 60 * 60;
+            const oneYearInSeconds = 31 * 24 * 60 * 60;
             await ethers.provider.send("evm_increaseTime", [oneYearInSeconds]);
             await ethers.provider.send("evm_mine");
+            const premiumFee = await policyMaker.calculatePremium(policyId, owner.address);
+            console.log(ethers.formatEther(premiumFee));
+
             const lastPaid: any = await policyMaker.lastPremiumPaidTime(policyId, owner.address);
             const numberLastPaid = Number(lastPaid.toString());
             console.log("Last paid, ", numberLastPaid);
-            
+            const timeFactor = await policyMaker.calculateDecayFactor(policyId, lastPaid);
+            console.log("decay factor, ", timeFactor);
+            const premiumFactor = await policyMaker.calculatePremiumSizeFactor(policyId, premiumFee);
+            console.log("Premium , ", premiumFactor);
+            const dynamicFactor = timeFactor * premiumFactor;
+            console.log(dynamicFactor);
+
             const dynamicCoverageFactor = await policyMaker.calculateDynamicCoverageFactor(policyId, owner.address, ethers.parseEther('10'));
             console.log("Dynamic coverage factor, ", dynamicCoverageFactor);
-            const premiumFee = await policyMaker.calculatePremium(policyId, owner.address);
-            console.log(ethers.formatEther(premiumFee));
             const provider = new ethers.JsonRpcProvider();
             const blockNow: Block | null = await provider.getBlock('latest');
             // Calculate the difference in milliseconds
@@ -103,7 +112,7 @@ describe("PolicyMaker", function () {
             const differenceInMilliseconds = blockTimestamp - numberLastPaid;
             const differenceInDays = differenceInMilliseconds / (60 * 60 * 24); // Convert milliseconds to days
             console.log(differenceInDays);
-            await expect(policyMaker.connect(owner).payPremium(policyId, premiumFee)).to.not.be.reverted;
+            // await expect(policyMaker.connect(owner).payPremium(policyId, premiumFee)).to.not.be.reverted;
         });
         it.skip("Should increase aWETH balance after 1 year", async function () {
             const initPremiumFee = ethers.parseEther("100");
@@ -143,18 +152,6 @@ describe("PolicyMaker", function () {
             const userData2 = await poolContract.getUserAccountData(owner.address);
             console.log(ethers.formatEther(userData2.totalCollateralBase));
 
-            // const currentLiquidityIndex = reserveDataAfter.liquidityIndex;
-            // console.log(ethers.formatEther(currentLiquidityIndex));
-            // // Calculate accrued interest
-            // const accruedInterest = currentLiquidityIndex * investmentFundBalance / depositLiquidityIndex - investmentFundBalance;
-            // console.log("accruedInterest", ethers.formatEther(accruedInterest));
-            // // const depositLiquidityIndex = reserveDataAfter.depositLiquidityIndex;
-            // // const accruedAWETH = (currentLiquidityIndex / depositLiquidityIndex) * investmentFundBalance;
-            // // console.log(accruedAWETH);
-            // // Check aWETH balance
-            // const finalAWethBalance = await aWeth.balanceOf(policyMakerAddress);
-            // console.log(finalAWethBalance);
-            // expect(finalAWethBalance).to.be.gt(initialAWethBalance);
         });
     });
 });

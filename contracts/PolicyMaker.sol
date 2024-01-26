@@ -347,8 +347,6 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     ) public view returns (uint256) {
         require(policies[_policyId].isActive, "Policy is not active");
         uint256 initialCoverage = calculateInitialCoverage(_policyId);
-        console.log("coverage funded ", coverageFunded[_policyId][_policyHolder]);
-        console.log("inital premium fee size", (policies[_policyId].initialPremiumFee * policies[_policyId].coverageFundPercentage) / 100);
         if (coverageFunded[_policyId][_policyHolder] == (policies[_policyId].initialPremiumFee * policies[_policyId].coverageFundPercentage) / 100)
         {
             return initialCoverage;
@@ -359,7 +357,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
             _policyHolder,
             coverageFunded[_policyId][_policyHolder] - ((policies[_policyId].initialPremiumFee * policies[_policyId].coverageFundPercentage) / 100)
         );
-        console.log("additional coverage", additionalCoverage);
+        
         uint256 totalCoverage = initialCoverage + additionalCoverage;
         if (amountClaimed[_policyId][_policyHolder] > totalCoverage) {
             return 0;
@@ -405,28 +403,49 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         uint256 inputPremium
     ) public view returns (uint256) {
         Policy memory policy = policies[_policyId];
-        uint256 timeFactor = 1.0 +
-                        calculateTimeBasedIncrease(block.timestamp - policy.startTime);
+        uint256 timeSinceLastPayment = block.timestamp - lastPremiumPaidTime[_policyId][_policyHolder];
 
-        // Calculate the premiumSizeFactor with a guard against zero
+        // Calculate the premiumSizeFactor
         uint256 premiumSizeFactor = calculatePremiumSizeFactor(
             _policyId,
             inputPremium
         );
-        premiumSizeFactor = (premiumSizeFactor == 0 && inputPremium > 0)
-            ? 1
-            : premiumSizeFactor;
 
-        return timeFactor * premiumSizeFactor;
+        // Ensure a minimum factor of 1 if there's a positive input premium
+        premiumSizeFactor = (premiumSizeFactor == 0 && inputPremium > 0) ? 1 : premiumSizeFactor;
+
+        // Calculate the decay factor based on the time since the last payment
+        uint256 decayFactor = calculateDecayFactor(_policyId, timeSinceLastPayment);
+
+        // The final dynamic coverage factor is the product of the premium size factor and the decay factor
+        // Assuming both factors are scaled by 1e18 for precision
+        uint256 dynamicCoverageFactor = (premiumSizeFactor * (1 + decayFactor)) / 1e18;
+
+        return dynamicCoverageFactor;
     }
 
-    function calculateTimeBasedIncrease(
-        uint256 timeSinceStart
-    ) public pure returns (uint256) {
-        uint256 monthsElapsed = timeSinceStart / 30 days;
-        uint256 factorIncrease = monthsElapsed * 10 * 100;
-        return factorIncrease / 100;
+
+    function calculateDecayFactor(uint32 policyId, uint256 timeSinceLastPayment) public view returns (uint256) {
+        Policy storage policy = policies[policyId];
+        uint256 gracePeriodInSeconds = policy.monthsGracePeriod * 30 days;
+
+        // Calculate the fraction of the grace period that has elapsed
+        uint256 fractionElapsed = (timeSinceLastPayment * 5) / gracePeriodInSeconds;
+
+        // Determine the decay factor based on the fraction of grace period elapsed
+        if (fractionElapsed < 1) {
+            return 1e18; // 100% - first 1/5th of the grace period
+        } else if (fractionElapsed < 2) {
+            return 0.8e18; // 80% - second 1/5th
+        } else if (fractionElapsed < 3) {
+            return 0.6e18; // 60% - third 1/5th
+        } else if (fractionElapsed < 4) {
+            return 0.4e18; // 40% - fourth 1/5th
+        } else {
+            return 0; // 0% - beyond 4/5th of the grace period
+        }
     }
+
 
     function calculatePremiumSizeFactor(uint32 _policyId, uint256 inputPremium) public view returns (uint256) {
         uint256 coverageAmount = policies[_policyId].coverageAmount;
@@ -434,7 +453,6 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         if (inputPremium > coverageAmount || inputPremium == 0) {
             return 0;
         }
-
         uint256 ratio = (inputPremium * 100) / coverageAmount;
 
         if (ratio < 10) {
