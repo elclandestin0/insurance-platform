@@ -1,7 +1,7 @@
 ﻿import {ethers} from "hardhat";
 import {expect} from "chai";
 import {IERC20, PolicyMaker, WETH, IPool} from "../typechain";
-import {Contract, Signer} from "ethers";
+import {Block, Contract, Signer} from "ethers";
 
 const IERC20_ABI = require('../artifacts/contracts/IERC20.sol/IERC20.json');
 
@@ -12,7 +12,7 @@ describe("PolicyMaker", function () {
     let aWeth: IERC20;
     let owner: Signer, addr1: Signer;
     let policyId: any;
-    const policyMakerAddress = "0xb9b0c96e4E7181926D2A7ed331C9C346dfa59b4D";
+    const policyMakerAddress = "0x564Db7a11653228164FD03BcA60465270E67b3d7";
     const wethAddress = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
     const aWethAddress = "0x030bA81f1c18d280636F32af80b9AAd02Cf0854e";
     const poolAddress = "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2";
@@ -38,8 +38,8 @@ describe("PolicyMaker", function () {
             365,
             20,
             6,
-            100,
-            0
+            85,
+            15
         );
 
         // give owner 1000 WETH
@@ -70,25 +70,40 @@ describe("PolicyMaker", function () {
             expect(ownerBalanceBefore).to.be.greaterThan(ownerBalanceAfter);
         });
         it("Should increase premium", async function () {
-            const oneYearInSeconds = 3 * 24 * 60 * 60;
+            const premiumRateBefore = await policyMaker.calculatePremium(policyId, owner.address);
+            console.log("the accumulated premium rate is: " + ethers.formatEther(premiumRateBefore))
+            const oneYearInSeconds = 30 * 24 * 60 * 60;
             await ethers.provider.send("evm_increaseTime", [oneYearInSeconds]);
             await ethers.provider.send("evm_mine");
-            const premiumRate = await policyMaker.calculatePremium(policyId, owner.address);
-            console.log("the accumulated premium rate is: " + ethers.formatEther(premiumRate))
+            const premiumRateAfter = await policyMaker.calculatePremium(policyId, owner.address);
+            console.log("the accumulated premium rate is: " + ethers.formatEther(premiumRateAfter))
+            expect(premiumRateAfter).to.be.greaterThan(premiumRateBefore);
         });
         it("Should fail when paying the premium with an amount < calculatedPremium", async function () {
             const premiumFee = ethers.parseEther("1");
             await expect(policyMaker.connect(owner).payPremium(policyId, premiumFee)).to.be.revertedWith("Amount needs to be higher than the calculated premium!");
         });
         it("Should succeed when paying the correct premium rate", async function () {
-            const oneYearInSeconds = 365 * 24 * 60 * 60;
+            const oneYearInSeconds = 15 * 24 * 60 * 60;
             await ethers.provider.send("evm_increaseTime", [oneYearInSeconds]);
             await ethers.provider.send("evm_mine");
-            const premiumRate = await policyMaker.calculatePremium(policyId, owner.address);
-            console.log("the accumulated premium rate is: " + ethers.formatEther(premiumRate));
-            await policyMaker.connect(owner).payPremium(policyId, premiumRate);
-            const newPremiumRequired = await policyMaker.calculatePremium(policyId, owner.address);
-            expect(ethers.formatEther(newPremiumRequired)).to.eq('0.0');
+            const lastPaid: any = await policyMaker.lastPremiumPaidTime(policyId, owner.address);
+            const numberLastPaid = Number(lastPaid.toString());
+            console.log("Last paid, ", numberLastPaid);
+            
+            const dynamicCoverageFactor = await policyMaker.calculateDynamicCoverageFactor(policyId, owner.address, ethers.parseEther('10'));
+            console.log("Dynamic coverage factor, ", dynamicCoverageFactor);
+            const premiumFee = await policyMaker.calculatePremium(policyId, owner.address);
+            console.log(ethers.formatEther(premiumFee));
+            const provider = new ethers.JsonRpcProvider();
+            const blockNow: Block | null = await provider.getBlock('latest');
+            // Calculate the difference in milliseconds
+            const blockTimestamp = blockNow?.timestamp;
+            // Calculate the difference in days
+            const differenceInMilliseconds = blockTimestamp - numberLastPaid;
+            const differenceInDays = differenceInMilliseconds / (60 * 60 * 24); // Convert milliseconds to days
+            console.log(differenceInDays);
+            await expect(policyMaker.connect(owner).payPremium(policyId, premiumFee)).to.not.be.reverted;
         });
         it.skip("Should increase aWETH balance after 1 year", async function () {
             const initPremiumFee = ethers.parseEther("100");

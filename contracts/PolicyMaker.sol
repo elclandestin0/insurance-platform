@@ -238,7 +238,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     }
 
     // Helper function to calculate how much of the premium should go to the coverage fund
-    function calculatePremiumForCoverageFund(uint32 _policyId, uint256 premium, uint256 remainingCoverageNeeded) internal view returns (uint256) {
+    function calculatePremiumForCoverageFund(uint32 _policyId, uint256 premium, uint256 remainingCoverageNeeded) public view returns (uint256) {
         uint256 coverageAmount = policies[_policyId].coverageAmount;
 
         if (premium > coverageAmount || premium == 0) {
@@ -376,7 +376,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
 
     function calculateInitialCoverage(
         uint32 _policyId
-    ) internal view returns (uint256) {
+    ) public view returns (uint256) {
         return
             (policies[_policyId].coverageAmount *
                 policies[_policyId].initialCoveragePercentage) / 100;
@@ -386,7 +386,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         uint32 _policyId,
         address _policyHolder,
         uint256 _amount
-    ) internal view returns (uint256) {
+    ) public view returns (uint256) {
         // Ensure the amount is greater than the initial premium fee
         if (_amount <= policies[_policyId].initialPremiumFee) {
             return 0;
@@ -422,7 +422,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
 
     function calculateTimeBasedIncrease(
         uint256 timeSinceStart
-    ) internal pure returns (uint256) {
+    ) public pure returns (uint256) {
         uint256 monthsElapsed = timeSinceStart / 30 days;
         uint256 factorIncrease = monthsElapsed * 10 * 100;
         return factorIncrease / 100;
