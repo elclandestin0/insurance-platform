@@ -6,7 +6,10 @@
   "author": "cherrypopsicle <majd.khoury93@gmail.com>",
   "license": "MIT",
   "scripts": {
-    "compile": "SKIP_LOAD=true hardhat compile"
+    "compile": "SKIP_LOAD=true hardhat compile",
+    "deploy": "hardhat run scripts/deploy.ts",
+    "node": "hardhat node",
+    "test": "hardhat test"
   },
   "dependencies": {
     "@aave/core-v3": "^1.18.0",

@@ -13,9 +13,9 @@ describe("PolicyMaker", function () {
     let aWeth: AToken;
     let owner: Signer, addr1: Signer;
     let policyId: any;
-    const policyMakerAddress = "0xf93b0549cD50c849D792f0eAE94A598fA77C7718";
+    const policyMakerAddress = "0x564Db7a11653228164FD03BcA60465270E67b3d7";
     const wethAddress = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
-    const aWethAddress = "0x030bA81f1c18d280636F32af80b9AAd02Cf0854e";
+    const aWethAddress = "0x4d5F47FA6A74757f35C14fD3a6Ef8E3C9BC514E8";
     const poolAddress = "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2";
 
     // Deploying the PolicyMaker contract before each test
@@ -63,7 +63,7 @@ describe("PolicyMaker", function () {
             const initPremiumFee = ethers.parseEther("0.5");
             await expect(policyMaker.payInitialPremium(policyId)).to.be.revertedWith("Can't afford the rate!");
         });
-        it("Should be able to pay initial premium and decrease my WETH balance", async function () {
+        it.only("Should be able to pay initial premium and decrease my WETH balance", async function () {
             const ownerBalanceBefore = await weth.balanceOf(await owner.getAddress());
             await policyMaker.connect(owner).payInitialPremium(policyId);
             const totalCoverage = await policyMaker.calculateTotalCoverage(policyId, owner.address);
@@ -114,18 +114,18 @@ describe("PolicyMaker", function () {
             console.log(differenceInDays);
             // await expect(policyMaker.connect(owner).payPremium(policyId, premiumFee)).to.not.be.reverted;
         });
-        it.skip("Should increase aWETH balance after 1 year", async function () {
-            const initPremiumFee = ethers.parseEther("100");
-            await policyMaker.connect(owner).payCustomPremium(1, 50, initPremiumFee);
+        it.only("Should increase aWETH balance after 1 year", async function () {
+            const initPremiumFee = ethers.parseEther("20");
+            await policyMaker.connect(owner).payPremium(policyId, initPremiumFee);
             const ownerBalanceBefore = await weth.balanceOf(policyMakerAddress);
             console.log("weth owner balance before supplying", ownerBalanceBefore)
             let investmentFundBalance = await policyMaker.investmentFundBalance(1);
             const aWethBalanceBefore = await aWeth.balanceOf(policyMakerAddress);
-            console.log(ethers.formatEther(aWethBalanceBefore));
+            console.log("aweth balance before: ", ethers.formatEther(aWethBalanceBefore));
 
             // Invest in Aave Pool
             const reserveDataBefore = await poolContract.getReserveData(wethAddress);
-            console.log("liquidity index before: ", ethers.formatEther(reserveDataBefore.liquidityIndex));
+            console.log("atokenaddress index before: ", reserveDataBefore.aTokenAddress);
             await policyMaker.connect(owner).investInAavePool(1, investmentFundBalance / ethers.parseUnits("2", 0));
 
             // Fast-forward time by 1 year
@@ -136,8 +136,7 @@ describe("PolicyMaker", function () {
             investmentFundBalance = await policyMaker.investmentFundBalance(1);
             await policyMaker.connect(owner).investInAavePool(1, investmentFundBalance / ethers.parseUnits("2", 0));
             const aWethBalanceAfter = await aWeth.balanceOf(policyMakerAddress);
-            console.log(ethers.formatEther(aWethBalanceAfter));
-            console.log()
+            console.log("aweth balance after: ", ethers.formatEther(aWethBalanceAfter));
             const reserveDataAfter = await poolContract.getReserveData(wethAddress);
             console.log(reserveDataAfter);
             console.log("liquidity index after ", ethers.formatEther(reserveDataAfter.liquidityIndex));
