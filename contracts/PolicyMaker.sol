@@ -13,6 +13,7 @@ import "./IWETH.sol";
 contract PolicyMaker is Ownable, ReentrancyGuard {
     using Math for uint256;
     IWETH public weth;
+    IERC20 public aWeth;
 
     struct Policy {
         uint256 coverageAmount;
@@ -26,6 +27,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         uint32 coverageFundPercentage;
         uint32 investmentFundPercentage;
         uint256 startTime;
+        address creator;
     }
 
     // Dead code .. for now. 
@@ -35,6 +37,8 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     mapping(uint32 => Policy) public policies;
     mapping(uint32 => uint256) public coverageFundBalance;
     mapping(uint32 => uint256) public investmentFundBalance;
+    mapping(uint32 => uint256) public totalSupplied;
+    // to-do: use later when multiple tokens are added
     mapping(uint32 => mapping(address => uint256)) public coverageFundTokenBalance;
     mapping(uint32 => mapping(address => uint256)) public investmentFundTokenBalance;
 
@@ -54,13 +58,9 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     IPoolAddressesProvider private addressesProvider;
     IPool private lendingPool;
     address public constant WETH_ADDRESS = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    address public constant AWETH_ADDRESS = 0x4d5F47FA6A74757f35C14fD3a6Ef8E3C9BC514E8;
 
-    constructor(address initialOwner, address _addressesProvider) Ownable(initialOwner) {
-        addressesProvider = IPoolAddressesProvider(_addressesProvider);
-        lendingPool = IPool(addressesProvider.getPool());
-        weth = IWETH(WETH_ADDRESS);
-    }
-
+    // Events
     event PolicyCreated(
         uint32 policyId,
         uint256 coverageAmount,
@@ -81,6 +81,19 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         bool isPremium
     );
 
+    // Modifiers
+    modifier onlyPolicyCreator(uint32 policyId) {
+        require(msg.sender == policies[policyId].creator, "Not the creator!");
+        _;
+    }
+
+    constructor(address initialOwner, address _addressesProvider) Ownable(initialOwner) {
+        addressesProvider = IPoolAddressesProvider(_addressesProvider);
+        lendingPool = IPool(addressesProvider.getPool());
+        weth = IWETH(WETH_ADDRESS);
+        aWeth = IERC20(AWETH_ADDRESS);
+    }
+
     function createPolicy(
         uint256 _coverageAmount,
         uint256 _initialPremiumFee,
@@ -91,7 +104,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         uint32 _monthsGracePeriod,
         uint32 _coverageFundPercentage,
         uint32 _investmentFundPercentage
-    ) public onlyOwner {
+    ) public {
         policies[nextPolicyId] = Policy(
             _coverageAmount,
             _initialPremiumFee,
@@ -103,7 +116,8 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
             _monthsGracePeriod,
             _coverageFundPercentage,
             _investmentFundPercentage,
-            block.timestamp
+            block.timestamp,
+            msg.sender
         );
         emit PolicyCreated(
             nextPolicyId,
@@ -523,12 +537,18 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     }
 
     // Aave pool functions
-    function investInAavePool(uint32 policyId, uint256 amount) external {
+    function investInAavePool(uint32 policyId, uint256 amount) external onlyPolicyCreator(policyId) {
         require(IERC20(WETH_ADDRESS).balanceOf(address(this)) >= amount, "Insufficient WETH balance");
         require(investmentFundBalance[policyId] > amount, "Insufficient investment funds!");
         IERC20(WETH_ADDRESS).approve(address(lendingPool), amount);
         lendingPool.deposit(WETH_ADDRESS, amount, address(this), 0);
         investmentFundBalance[policyId] -= amount;
+        totalSupplied[policyId] += amount;
+    }
+
+    function calculateTotalAccrued(uint32 policyId) external view returns (uint256) {
+        uint256 aWethTokenBalance = aWeth.balanceOf(address(this));
+        return aWethTokenBalance - totalSupplied[policyId] >= 0 ? aWethTokenBalance - totalSupplied[policyId] : 0; 
     }
 
     function withdrawFromAavePool(address asset, uint256 amount) external {
