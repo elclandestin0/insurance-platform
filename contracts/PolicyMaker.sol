@@ -202,9 +202,10 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         investmentFundBalance[_policyId] += premiumForInvestmentFund; // Safe add
 
         // Record the premiums paid and fund contributions
-        premiumsPaid[_policyId][msg.sender] += amount; // Safe add
-        coverageFunded[_policyId][msg.sender] += premiumForCoverageFund; // Safe add
-        investmentFunded[_policyId][msg.sender] += premiumForInvestmentFund; // Safe add
+        premiumsPaid[_policyId][msg.sender] += amount;
+        coverageFunded[_policyId][msg.sender] += premiumForCoverageFund;
+        investmentFunded[_policyId][msg.sender] += premiumForInvestmentFund;
+        lastPremiumPaidTime[_policyId][msg.sender] = block.timestamp;
 
         emit PremiumPaid(_policyId, msg.sender, amount, false);
     }
@@ -214,7 +215,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         require(isPolicyOwner(_policyId, msg.sender), "Not a policy owner");
         require(policies[_policyId].isActive, "Policy is not active");
         require(investmentFundPercentage <= 100, "Invalid percentage value");
-        require(calculateTotalCoverage(_policyId, msg.sender) < policies[_policyId].coverageAmount * 2, "Maximum bonus coverage reached.");
+        require(calculateTotalCoverage(_policyId, msg.sender) >= policies[_policyId].coverageAmount, "Need to be fully covered first.");
         require(weth.transferFrom(msg.sender, address(this), amount), "WETH transfer failed");
         require(amount >= calculatePremium(_policyId, msg.sender), "Amount needs to be higher than the calculated premium!");
 
@@ -231,6 +232,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         coverageFunded[_policyId][msg.sender] += premiumForCoverageFund;
         investmentFundBalance[_policyId] += premiumForInvestmentFund;
         investmentFunded[_policyId][msg.sender] += premiumForInvestmentFund;
+        lastPremiumPaidTime[_policyId][msg.sender] = block.timestamp;
 
         // Record the premiums paid
         premiumsPaid[_policyId][msg.sender] += amount;
@@ -304,7 +306,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
 
         // Subtract by the total premiums paid.
         uint256 netPremiumsPaid = premiumsPaid[_policyId][_policyHolder] - policies[_policyId].initialPremiumFee;
-        return premium - netPremiumsPaid;
+        return netPremiumsPaid > premium ? 0 : premium - netPremiumsPaid;
     }
 
     function calculatePotentialCoverage(
@@ -313,7 +315,6 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         uint256 _amount
     ) public view returns (uint256) {
         require(policies[_policyId].isActive, "Policy is not active");
-        require(calculateTotalCoverage(_policyId, _policyHolder) < policies[_policyId].coverageAmount, "You are already fully covered!");
 
         uint256 currentTotalCoverage = calculateTotalCoverage(
             _policyId,
@@ -357,7 +358,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
             _policyHolder,
             coverageFunded[_policyId][_policyHolder] - ((policies[_policyId].initialPremiumFee * policies[_policyId].coverageFundPercentage) / 100)
         );
-        
+
         uint256 totalCoverage = initialCoverage + additionalCoverage;
         if (amountClaimed[_policyId][_policyHolder] > totalCoverage) {
             return 0;
