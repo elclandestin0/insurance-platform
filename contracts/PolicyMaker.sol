@@ -30,6 +30,12 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         address creator;
     }
 
+    // For returning rewards accumulated by policy owners
+    struct RewardInfo {
+        address policyOwner;
+        uint256 reward;
+    }
+
     // Dead code .. for now. 
     address private payoutContract;
 
@@ -38,12 +44,15 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     mapping(uint32 => uint256) public coverageFundBalance;
     mapping(uint32 => uint256) public investmentFundBalance;
     mapping(uint32 => uint256) public totalSupplied;
+    mapping(uint32 => uint256) public rewards;
+
     // to-do: use later when multiple tokens are added
     mapping(uint32 => mapping(address => uint256)) public coverageFundTokenBalance;
     mapping(uint32 => mapping(address => uint256)) public investmentFundTokenBalance;
 
     // User queries
     mapping(uint32 => mapping(address => bool)) public policyOwners;
+    mapping(uint32 => address[]) public policyOwnerAddresses;
     mapping(uint32 => mapping(address => uint256)) public premiumsPaid;
     mapping(uint32 => mapping(address => uint256)) public coverageFunded;
     mapping(uint32 => mapping(address => uint256)) public investmentFunded;
@@ -179,6 +188,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         // Store premiums paid for the account
         premiumsPaid[_policyId][msg.sender] += policies[_policyId].initialPremiumFee;
         policyOwners[_policyId][msg.sender] = true;
+        policyOwnerAddresses[_policyId].push(msg.sender);
         lastPremiumPaidTime[_policyId][msg.sender] = block.timestamp;
 
         // Calculate coverage and investment amount to add them to the fund
@@ -546,12 +556,40 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         totalSupplied[policyId] += amount;
     }
 
-    function calculateTotalAccrued(uint32 policyId) external view returns (uint256) {
+
+    function calculateTotalAccrued(uint32 policyId) public view returns (uint256) {
         uint256 aWethTokenBalance = aWeth.balanceOf(policies[policyId].creator);
         return aWethTokenBalance - totalSupplied[policyId] >= 0 ? aWethTokenBalance - totalSupplied[policyId] : 0;
     }
 
-    function withdrawFromAavePool(address asset, uint256 amount) external {
+    function calculateRewards(uint32 policyId) public view returns (RewardInfo[] memory) {
+        uint256 totalInvestmentFund = investmentFundBalance[policyId];
+        uint256 totalAccrued = calculateTotalAccrued(policyId);
+
+        RewardInfo[] memory rewardsData;
+
+        // Return rewards based on the percentage of how much the owner funded over the total investment fund
+        if (totalInvestmentFund > 0) {
+            rewardsData = new RewardInfo[](policyOwnerAddresses[policyId].length);
+
+            for (uint i = 0; i < policyOwnerAddresses[policyId].length; i++) {
+                address policyOwner = policyOwnerAddresses[policyId][i];
+                uint256 ownerInvestment = investmentFunded[policyId][policyOwner];
+
+                if (ownerInvestment > 0) {
+                    uint256 ownerShare = (ownerInvestment * 1e18) / totalInvestmentFund;
+                    uint256 reward = (ownerShare * totalAccrued) / 1e18;
+
+                    rewardsData[i] = RewardInfo(policyOwner, reward);
+                }
+            }
+        }
+
+        return rewardsData;
+    }
+
+
+    function withdrawFromAavePool(uint32 policyId, address asset, uint256 amount) external onlyPolicyCreator(policyId) {
         // Ensure only authorized access
         lendingPool.withdraw(asset, amount, address(this));
     }
