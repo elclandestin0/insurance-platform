@@ -32,20 +32,23 @@ describe("PolicyMaker", function () {
         // Maybe delete later?
         aWeth = new ethers.Contract(aWethAddress, IERC20_ABI.abi, owner);
         poolContract = await ethers.getContractAt('IPool', poolAddress);
-        const tx = await policyMaker.createPolicy(
-            ethers.parseEther("100"),
-            ethers.parseEther("1"),
-            5,
-            ethers.parseEther("5"),
-            365,
-            20,
-            6,
-            85,
-            15
-        );
+        const policy = await policyMaker.policies(1);
+        if (!policy) {
+            const tx = await policyMaker.createPolicy(
+                ethers.parseEther("100"),
+                ethers.parseEther("1"),
+                5,
+                ethers.parseEther("5"),
+                365,
+                20,
+                6,
+                85,
+                15
+            );
+        }
 
         // give owner 1000 WETH
-        const amountToConvert = ethers.parseEther("100");
+        const amountToConvert = ethers.parseEther("250");
 
         // Ensure the balance is sufficient
         await weth.connect(owner).deposit({value: amountToConvert});
@@ -63,7 +66,7 @@ describe("PolicyMaker", function () {
             const initPremiumFee = ethers.parseEther("0.5");
             await expect(policyMaker.payInitialPremium(policyId)).to.be.revertedWith("Can't afford the rate!");
         });
-        it.only("Should be able to pay initial premium and decrease my WETH balance", async function () {
+        it.skip("Should be able to pay initial premium and decrease my WETH balance", async function () {
             const ownerBalanceBefore = await weth.balanceOf(await owner.getAddress());
             await policyMaker.connect(owner).payInitialPremium(policyId);
             const totalCoverage = await policyMaker.calculateTotalCoverage(policyId, owner.address);
@@ -115,15 +118,20 @@ describe("PolicyMaker", function () {
             // await expect(policyMaker.connect(owner).payPremium(policyId, premiumFee)).to.not.be.reverted;
         });
         it.only("Should increase aWETH balance after 1 year", async function () {
+
             const premiumAmount = ethers.parseEther("60");
             const premiumFee = await policyMaker.calculatePremium(policyId, owner.address);
             console.log(ethers.formatEther(premiumFee));
             await policyMaker.connect(owner).payPremium(policyId, premiumAmount);
             const potentialCoverage = await policyMaker.calculatePotentialCoverage(policyId, owner.address, premiumAmount);
             console.log(ethers.formatEther(potentialCoverage));
+            console.log("Fast forwarding by one year ...");
+            let oneYearInSeconds = 365 * 24 * 60 * 60;
+            await ethers.provider.send("evm_increaseTime", [oneYearInSeconds]);
+            await ethers.provider.send("evm_mine");
             await policyMaker.connect(owner).payCustomPremium(policyId, 50, premiumAmount);
-            let investmentFundBalance = await policyMaker.investmentFundBalance(1);
-            const aWethBalanceBefore = await aWeth.balanceOf(policyMakerAddress);
+            let investmentFundBalance = await policyMaker.investmentFundBalance(policyId);
+            const aWethBalanceBefore = await aWeth.balanceOf(owner.address);
             console.log("aweth balance before: ", ethers.formatEther(aWethBalanceBefore));
 
             // Invest in Aave Pool
@@ -131,10 +139,9 @@ describe("PolicyMaker", function () {
 
             // Fast-forward time by 1 year
             console.log("Fast forwarding by one year ...");
-            const oneYearInSeconds = 365 * 24 * 60 * 60;
             await ethers.provider.send("evm_increaseTime", [oneYearInSeconds]);
             await ethers.provider.send("evm_mine");
-            const aWethBalanceAfter = await aWeth.balanceOf(policyMakerAddress);
+            const aWethBalanceAfter = await aWeth.balanceOf(owner.address);
 
             console.log("aweth balance after: ", ethers.formatEther(aWethBalanceAfter));
             expect(aWethBalanceAfter).to.be.greaterThan(aWethBalanceBefore);

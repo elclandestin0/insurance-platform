@@ -541,14 +541,14 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         require(IERC20(WETH_ADDRESS).balanceOf(address(this)) >= amount, "Insufficient WETH balance");
         require(investmentFundBalance[policyId] > amount, "Insufficient investment funds!");
         IERC20(WETH_ADDRESS).approve(address(lendingPool), amount);
-        lendingPool.deposit(WETH_ADDRESS, amount, address(this), 0);
+        lendingPool.deposit(WETH_ADDRESS, amount, msg.sender, 0);
         investmentFundBalance[policyId] -= amount;
         totalSupplied[policyId] += amount;
     }
 
     function calculateTotalAccrued(uint32 policyId) external view returns (uint256) {
-        uint256 aWethTokenBalance = aWeth.balanceOf(address(this));
-        return aWethTokenBalance - totalSupplied[policyId] >= 0 ? aWethTokenBalance - totalSupplied[policyId] : 0; 
+        uint256 aWethTokenBalance = aWeth.balanceOf(policies[policyId].creator);
+        return aWethTokenBalance - totalSupplied[policyId] >= 0 ? aWethTokenBalance - totalSupplied[policyId] : 0;
     }
 
     function withdrawFromAavePool(address asset, uint256 amount) external {
