@@ -563,7 +563,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     }
 
     function calculateRewards(uint32 policyId) public view returns (RewardInfo[] memory) {
-        uint256 totalInvestmentFund = investmentFundBalance[policyId];
+        uint256 totalInvestmentFund = investmentFundBalance[policyId] + totalSupplied[policyId];
         uint256 totalAccrued = calculateTotalAccrued(policyId);
 
         RewardInfo[] memory rewardsData;
