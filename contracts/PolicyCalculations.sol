@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.0;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.2;
 
 library PolicyCalculations {
 
@@ -36,9 +36,8 @@ library PolicyCalculations {
         }
 
         // Apply the dynamic coverage factor to the additional premium
-        uint256 additionalCoverage = _amount * calculateDynamicCoverageFactor(_policy, _policyHolder, _amount, _lastPremiumPaidTime);
+        return _amount * calculateDynamicCoverageFactor(_policy, _policyHolder, _amount, _lastPremiumPaidTime);
 
-        return additionalCoverage;
     }
 
 
@@ -109,14 +108,5 @@ library PolicyCalculations {
         } else {
             return 3;
         }
-    }
-
-    function log10(uint256 x) internal pure returns (uint256) {
-        uint256 result = 0;
-        while (x >= 10) {
-            x /= 10;
-            result++;
-        }
-        return result;
     }
 }

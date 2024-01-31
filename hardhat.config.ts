@@ -16,25 +16,40 @@ const config: HardhatUserConfig = {
         compilers: [
             {
                 version: '0.8.20',
+                settings: {
+                    optimizer: {
+                        enabled: true,
+                        runs: 50
+                    }
+                }
             },
             {
-                version: '0.4.24'
+                version: '0.4.24',
+                settings: {
+                    optimizer: {
+                        enabled: true,
+                        runs: 50
+                    }
+                }
             }
         ],
     },
     networks: {
         // Add the Optimism network configuration
         hardhat: {
-            blockGasLimit: 1444698,
+            gas: 12000000,
+            blockGasLimit: 0x1fffffffffffff,
             forking: {
                 url: `https://mainnet.infura.io/v3/${API_KEY}`,
             },
             allowUnlimitedContractSize: true
         },
         localhost: {
+            gas: 12000000,
+            blockGasLimit: 0x1fffffffffffff,
             url: "http://127.0.0.1:8545",
-            blockGasLimit: 1444698,
-            allowUnlimitedContractSize: true
+            allowUnlimitedContractSize: true,
+            timeout: 1800000
         },
         optimism: {
             url: `https://sepolia.optimism.io`, // Optimism testnet RPC URL

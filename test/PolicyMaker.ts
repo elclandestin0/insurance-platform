@@ -13,7 +13,7 @@ describe("PolicyMaker", function () {
     let aWeth: AToken;
     let owner: Signer, addr1: Signer, addr2: Signer;
     let policyId: any;
-    const policyMakerAddress = "0x519b05b3655F4b89731B677d64CEcf761f4076f6";
+    const policyMakerAddress = "0xD28F3246f047Efd4059B24FA1fa587eD9fa3e77F";
     const wethAddress = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
     const aWethAddress = "0x4d5F47FA6A74757f35C14fD3a6Ef8E3C9BC514E8";
     const poolAddress = "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2";
@@ -110,15 +110,6 @@ describe("PolicyMaker", function () {
             const lastPaid: any = await policyMaker.lastPremiumPaidTime(policyId, owner.address);
             const numberLastPaid = Number(lastPaid.toString());
             console.log("Last paid, ", numberLastPaid);
-            const timeFactor = await policyMaker.calculateDecayFactor(policyId, lastPaid);
-            console.log("decay factor, ", timeFactor);
-            const premiumFactor = await policyMaker.calculatePremiumSizeFactor(policyId, premiumFee);
-            console.log("Premium , ", premiumFactor);
-            const dynamicFactor = timeFactor * premiumFactor;
-            console.log(dynamicFactor);
-
-            const dynamicCoverageFactor = await policyMaker.calculateDynamicCoverageFactor(policyId, owner.address, ethers.parseEther('10'));
-            console.log("Dynamic coverage factor, ", dynamicCoverageFactor);
             const provider = new ethers.JsonRpcProvider();
             const blockNow: Block | null = await provider.getBlock('latest');
             // Calculate the difference in milliseconds

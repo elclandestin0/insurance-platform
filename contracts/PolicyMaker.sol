@@ -7,7 +7,6 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@aave/core-v3/contracts/interfaces/IPool.sol";
 import "@aave/core-v3/contracts/interfaces/IPoolAddressesProvider.sol";
-import "hardhat/console.sol";
 import "./IWETH.sol";
 
 // Internal

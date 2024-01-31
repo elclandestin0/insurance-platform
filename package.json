@@ -8,8 +8,8 @@
   "scripts": {
     "compile": "SKIP_LOAD=true hardhat compile",
     "deploy": "hardhat run scripts/deploy.ts",
-    "node": "hardhat node",
-    "test": "hardhat test"
+    "test": "hardhat test",
+    "node": "export NODE_OPTIONS='--max-old-space-size=8192' npx hardhat node"
   },
   "dependencies": {
     "@aave/core-v3": "^1.18.0",
