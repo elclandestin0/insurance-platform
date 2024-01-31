@@ -25,12 +25,16 @@ const config: HardhatUserConfig = {
     networks: {
         // Add the Optimism network configuration
         hardhat: {
+            blockGasLimit: 1444698,
             forking: {
                 url: `https://mainnet.infura.io/v3/${API_KEY}`,
-            }
+            },
+            allowUnlimitedContractSize: true
         },
         localhost: {
-            url: "http://127.0.0.1:8545"
+            url: "http://127.0.0.1:8545",
+            blockGasLimit: 1444698,
+            allowUnlimitedContractSize: true
         },
         optimism: {
             url: `https://sepolia.optimism.io`, // Optimism testnet RPC URL
@@ -41,6 +45,7 @@ const config: HardhatUserConfig = {
         outDir: "typechain",
         target: "ethers-v5",
     },
+
 };
 
 export default config;

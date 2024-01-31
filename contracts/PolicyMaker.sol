@@ -10,25 +10,15 @@ import "@aave/core-v3/contracts/interfaces/IPoolAddressesProvider.sol";
 import "hardhat/console.sol";
 import "./IWETH.sol";
 
+// Internal
+import "./PolicyCalculations.sol";
+
 contract PolicyMaker is Ownable, ReentrancyGuard {
     using Math for uint256;
+    using PolicyCalculations for PolicyCalculations.Policy;
+
     IWETH public weth;
     IERC20 public aWeth;
-
-    struct Policy {
-        uint256 coverageAmount;
-        uint256 initialPremiumFee;
-        uint256 initialCoveragePercentage;
-        uint256 premiumRate;
-        uint32 duration;
-        bool isActive;
-        uint32 penaltyRate;
-        uint32 monthsGracePeriod;
-        uint32 coverageFundPercentage;
-        uint32 investmentFundPercentage;
-        uint256 startTime;
-        address creator;
-    }
 
     // For returning rewards accumulated by policy owners
     struct RewardInfo {
@@ -40,11 +30,11 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     address private payoutContract;
 
     // Policy queries
-    mapping(uint32 => Policy) public policies;
+    mapping(uint32 => PolicyCalculations.Policy) public policies;
     mapping(uint32 => uint256) public coverageFundBalance;
     mapping(uint32 => uint256) public investmentFundBalance;
     mapping(uint32 => uint256) public totalSupplied;
-    mapping(uint32 => uint256) public rewards;
+    mapping(uint32 => mapping(address => uint256)) public rewards;
 
     // to-do: use later when multiple tokens are added
     mapping(uint32 => mapping(address => uint256)) public coverageFundTokenBalance;
@@ -90,9 +80,19 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         bool isPremium
     );
 
+    modifier isPolicyOwner(uint32 policyId) {
+        require(policyOwners[policyId][msg.sender] == true, "Not policy owner!");
+        _;
+    }
+
     // Modifiers
     modifier onlyPolicyCreator(uint32 policyId) {
         require(msg.sender == policies[policyId].creator, "Not the creator!");
+        _;
+    }
+
+    modifier isPolicyActive(uint32 policyId) {
+        require(policies[policyId].isActive == true, "Policy must be active first!");
         _;
     }
 
@@ -114,20 +114,21 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         uint32 _coverageFundPercentage,
         uint32 _investmentFundPercentage
     ) public {
-        policies[nextPolicyId] = Policy(
-            _coverageAmount,
-            _initialPremiumFee,
-            _initialCoveragePercentage,
-            _premiumRate,
-            _duration,
-            true,
-            _penaltyRate,
-            _monthsGracePeriod,
-            _coverageFundPercentage,
-            _investmentFundPercentage,
-            block.timestamp,
-            msg.sender
-        );
+        PolicyCalculations.Policy memory newPolicy = PolicyCalculations.Policy({
+            coverageAmount: _coverageAmount,
+            initialPremiumFee: _initialPremiumFee,
+            initialCoveragePercentage: _initialCoveragePercentage,
+            premiumRate: _premiumRate,
+            duration: _duration,
+            isActive: true,
+            penaltyRate: _penaltyRate,
+            monthsGracePeriod: _monthsGracePeriod,
+            coverageFundPercentage: _coverageFundPercentage,
+            investmentFundPercentage: _investmentFundPercentage,
+            startTime: block.timestamp,
+            creator: msg.sender
+        });
+        policies[nextPolicyId] = newPolicy;
         emit PolicyCreated(
             nextPolicyId,
             _coverageAmount,
@@ -145,11 +146,12 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         uint32 _monthsGracePeriod,
         uint32 _penaltyRate
     ) public onlyOwner {
-        policies[_policyId].coverageAmount = _coverageAmount;
-        policies[_policyId].initialPremiumFee = _initialPremiumFee;
-        policies[_policyId].duration = _duration;
-        policies[_policyId].penaltyRate = _penaltyRate;
-        policies[_policyId].monthsGracePeriod = _monthsGracePeriod;
+        PolicyCalculations.Policy storage policy = policies[_policyId];
+        policy.coverageAmount = _coverageAmount;
+        policy.initialPremiumFee = _initialPremiumFee;
+        policy.duration = _duration;
+        policy.penaltyRate = _penaltyRate;
+        policy.monthsGracePeriod = _monthsGracePeriod;
         emit PolicyUpdated(
             _policyId,
             _coverageAmount,
@@ -163,24 +165,9 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         emit PolicyDeactivated(_policyId);
     }
 
-    function isActive(uint32 _policyId) public view returns (bool) {
-        return policies[_policyId].isActive;
-    }
-
-    function isPolicyOwner(
-        uint32 _policyId,
-        address _claimant
-    ) public view returns (bool) {
-        return policyOwners[_policyId][_claimant];
-    }
-
     // Payments section
-    function payInitialPremium(uint32 _policyId) public {
-        require(
-            !isPolicyOwner(_policyId, msg.sender),
-            "Already a claimant of this policy"
-        );
-        require(policies[_policyId].isActive, "Policy is not active");
+    function payInitialPremium(uint32 _policyId) public isPolicyActive(policyId) {
+        require(policyOwners[_policyId][msg.sender] == false, "Already a claimant of this policy");
         require(weth.balanceOf(msg.sender) > policies[_policyId].initialPremiumFee, "Insufficient funds!");
         // Transfer WETH from the user to the contract
         require(weth.transferFrom(msg.sender, address(this), policies[_policyId].initialPremiumFee), "WETH transfer failed");
@@ -203,9 +190,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         emit PremiumPaid(_policyId, msg.sender, policies[_policyId].initialPremiumFee, true);
     }
 
-    function payPremium(uint32 _policyId, uint256 amount) public payable {
-        require(isPolicyOwner(_policyId, msg.sender), "Not a policy owner");
-        require(policies[_policyId].isActive, "Policy is not active");
+    function payPremium(uint32 _policyId, uint256 amount) public payable isPolicyOwner(_policyId) isPolicyActive(_policyId) {
         require(calculateTotalCoverage(_policyId, msg.sender) < policies[_policyId].coverageAmount, "Full coverage achieved, use payCustomPremium");
         require(amount >= calculatePremium(_policyId, msg.sender), "Amount needs to be higher than the calculated premium!");
 
@@ -235,9 +220,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     }
 
 
-    function payCustomPremium(uint32 _policyId, uint256 investmentFundPercentage, uint256 amount) public payable {
-        require(isPolicyOwner(_policyId, msg.sender), "Not a policy owner");
-        require(policies[_policyId].isActive, "Policy is not active");
+    function payCustomPremium(uint32 _policyId, uint256 investmentFundPercentage, uint256 amount) public payable isPolicyOwner(_policyId) isPolicyActive(_policyId) {
         require(investmentFundPercentage <= 100, "Invalid percentage value");
         require(calculateTotalCoverage(_policyId, msg.sender) >= policies[_policyId].coverageAmount, "Need to be fully covered first.");
         require(weth.transferFrom(msg.sender, address(this), amount), "WETH transfer failed");
@@ -302,7 +285,6 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         uint32 _policyId,
         address _policyHolder
     ) public view returns (uint256) {
-        require(isPolicyOwner(_policyId, msg.sender), "Not a policy owner!");
         require(policies[_policyId].isActive, "Policy isn't active!");
         require(
             lastPremiumPaidTime[_policyId][_policyHolder] > 0,
@@ -397,111 +379,6 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         return netCoverage;
     }
 
-    function calculateInitialCoverage(
-        uint32 _policyId
-    ) public view returns (uint256) {
-        return
-            (policies[_policyId].coverageAmount *
-                policies[_policyId].initialCoveragePercentage) / 100;
-    }
-
-    function calculateAdditionalCoverage(
-        uint32 _policyId,
-        address _policyHolder,
-        uint256 _amount
-    ) public view returns (uint256) {
-        // Ensure the amount is greater than the initial premium fee
-        if (_amount <= policies[_policyId].initialPremiumFee) {
-            return 0;
-        }
-
-        // Apply the dynamic coverage factor to the additional premium
-        uint256 additionalCoverage = _amount * calculateDynamicCoverageFactor(_policyId, _policyHolder, _amount);
-
-        return additionalCoverage;
-    }
-
-
-    function calculateDynamicCoverageFactor(
-        uint32 _policyId,
-        address _policyHolder,
-        uint256 inputPremium
-    ) public view returns (uint256) {
-        Policy memory policy = policies[_policyId];
-        uint256 timeSinceLastPayment = block.timestamp - lastPremiumPaidTime[_policyId][_policyHolder];
-
-        // Calculate the premiumSizeFactor
-        uint256 premiumSizeFactor = calculatePremiumSizeFactor(
-            _policyId,
-            inputPremium
-        );
-
-        // Ensure a minimum factor of 1 if there's a positive input premium
-        premiumSizeFactor = (premiumSizeFactor == 0 && inputPremium > 0) ? 1 : premiumSizeFactor;
-
-        // Calculate the decay factor based on the time since the last payment
-        uint256 decayFactor = calculateDecayFactor(_policyId, timeSinceLastPayment);
-
-        // The final dynamic coverage factor is the product of the premium size factor and the decay factor
-        // Assuming both factors are scaled by 1e18 for precision
-        uint256 dynamicCoverageFactor = (premiumSizeFactor * (1 + decayFactor)) / 1e18;
-
-        return dynamicCoverageFactor;
-    }
-
-
-    function calculateDecayFactor(uint32 policyId, uint256 timeSinceLastPayment) public view returns (uint256) {
-        Policy storage policy = policies[policyId];
-        uint256 gracePeriodInSeconds = policy.monthsGracePeriod * 30 days;
-
-        // Calculate the fraction of the grace period that has elapsed
-        uint256 fractionElapsed = (timeSinceLastPayment * 5) / gracePeriodInSeconds;
-
-        // Determine the decay factor based on the fraction of grace period elapsed
-        if (fractionElapsed < 1) {
-            return 1e18; // 100% - first 1/5th of the grace period
-        } else if (fractionElapsed < 2) {
-            return 0.8e18; // 80% - second 1/5th
-        } else if (fractionElapsed < 3) {
-            return 0.6e18; // 60% - third 1/5th
-        } else if (fractionElapsed < 4) {
-            return 0.4e18; // 40% - fourth 1/5th
-        } else {
-            return 0; // 0% - beyond 4/5th of the grace period
-        }
-    }
-
-
-    function calculatePremiumSizeFactor(uint32 _policyId, uint256 inputPremium) public view returns (uint256) {
-        uint256 coverageAmount = policies[_policyId].coverageAmount;
-
-        if (inputPremium > coverageAmount || inputPremium == 0) {
-            return 0;
-        }
-        uint256 ratio = (inputPremium * 100) / coverageAmount;
-
-        if (ratio < 10) {
-            return 1;
-        } else if (ratio < 50) {
-            return 2;
-        } else if (ratio < 50) {
-            return 2;
-        } else if (ratio < 75) {
-            return 3;
-        } else {
-            return 3;
-        }
-    }
-
-    function log10(uint256 x) internal pure returns (uint256) {
-        uint256 result = 0;
-        while (x >= 10) {
-            x /= 10;
-            result++;
-        }
-        return result;
-    }
-
     function handlePayout(
         uint32 policyId,
         uint256 claimAmount
@@ -590,8 +467,28 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
 
 
     function withdrawFromAavePool(uint32 policyId, address asset, uint256 amount) external onlyPolicyCreator(policyId) {
-        // Ensure only authorized access
-        lendingPool.withdraw(asset, amount, address(this));
+        require(amount > 0, "Withdrawal amount must be greater than zero");
+        require(calculateTotalAccrued(policyId) >= amount, "Insufficient funds in investment fund");
+        require(policies[policyId].isActive, "Policy is not active");
+
+        // Check if withdraw was successful
+        uint256 withdrawnAmount = lendingPool.withdraw(asset, amount, address(this));
+        require(withdrawnAmount == amount, "Withdrawal from Aave pool failed or partially completed");
+
+        // Calculate the proportional rewards for each policy owner
+        uint256 totalInvestmentFund = investmentFundBalance[policyId] + totalSupplied[policyId];
+        if (totalInvestmentFund > 0) {
+            for (uint i = 0; i < policyOwnerAddresses[policyId].length; i++) {
+                address policyOwner = policyOwnerAddresses[policyId][i];
+                uint256 ownerInvestment = investmentFunded[policyId][policyOwner];
+                if (ownerInvestment > 0) {
+                    uint256 ownerShare = (ownerInvestment * 1e18) / totalInvestmentFund; // Precision handling
+                    uint256 reward = (ownerShare * amount) / 1e18;
+                    rewards[policyId][policyOwner] += reward;
+                }
+            }
+        }
     }
+
 
 }

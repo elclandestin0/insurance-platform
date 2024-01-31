@@ -20,52 +20,58 @@ describe("PolicyMaker", function () {
 
     // Deploying the PolicyMaker contract before each test
     before(async function () {
-        // [owner, addr1, addr2] = await ethers.getSigners();
-        // const PolicyMaker = await ethers.getContractFactory("PolicyMaker");
-        // policyMaker = PolicyMaker.attach(policyMakerAddress);
-        // policyId = await policyMaker.nextPolicyId();
-        // console.log(policyId);
-        //
-        // const WETH = await ethers.getContractFactory('WETH');
-        // weth = WETH.attach(wethAddress);
-        //
-        // // Maybe delete later?
-        // aWeth = new ethers.Contract(aWethAddress, IERC20_ABI.abi, owner);
-        // poolContract = await ethers.getContractAt('IPool', poolAddress);
-        //
-        // const tx = await policyMaker.createPolicy(
-        //     ethers.parseEther("100"),
-        //     ethers.parseEther("1"),
-        //     5,
-        //     ethers.parseEther("5"),
-        //     365,
-        //     20,
-        //     6,
-        //     85,
-        //     15
-        // );
-        //
-        // // give owner 1000 WETH
-        // const amountToConvert = ethers.parseEther("250");
-        //
-        // // Ensure the balance is sufficient
-        // await weth.connect(owner).deposit({value: amountToConvert});
-        // await weth.connect(addr1).deposit({value: amountToConvert});
-        // await weth.connect(addr2).deposit({value: amountToConvert});
-        //
-        // // Approve PolicyMaker to spend owner's WETH
-        // const unlimitedAmount = ethers.MaxUint256;
-        // await weth.connect(owner).approve(policyMakerAddress, unlimitedAmount);
-        // await weth.connect(addr1).approve(policyMakerAddress, unlimitedAmount);
-        // await weth.connect(addr2).approve(policyMakerAddress, unlimitedAmount);
-        //
-        // // check owner's WETH balance
-        // const ownerBalance = await weth.balanceOf(await addr1.getAddress());
-        // console.log("weth owner balance. ready to go.", ethers.formatEther(ownerBalance));
-        console.log("fast forwarding time .. ");
-        const oneYearInSeconds = 365 * 60 * 60 * 24;
-        await ethers.provider.send("evm_increaseTime", [oneYearInSeconds]);
-        await ethers.provider.send("evm_mine");
+        [owner, addr1, addr2] = await ethers.getSigners();
+        const PolicyMaker = await ethers.getContractFactory("PolicyMaker");
+        policyMaker = PolicyMaker.attach(policyMakerAddress);
+        policyId = await policyMaker.nextPolicyId();
+        console.log(policyId);
+
+        const WETH = await ethers.getContractFactory('WETH');
+        weth = WETH.attach(wethAddress);
+
+        // Maybe delete later?
+        aWeth = new ethers.Contract(aWethAddress, IERC20_ABI.abi, owner);
+        poolContract = await ethers.getContractAt('IPool', poolAddress);
+
+        const tx = await policyMaker.createPolicy(
+            ethers.parseEther("100"),
+            ethers.parseEther("1"),
+            5,
+            ethers.parseEther("5"),
+            365,
+            20,
+            6,
+            85,
+            15
+        );
+
+        // give owner 1000 WETH
+        const amountToConvert = ethers.parseEther("250");
+
+        // Ensure the balance is sufficient
+        await weth.connect(owner).deposit({value: amountToConvert});
+        await weth.connect(addr1).deposit({value: amountToConvert});
+        await weth.connect(addr2).deposit({value: amountToConvert});
+
+        // Approve PolicyMaker to spend owner's WETH
+        const unlimitedAmount = ethers.MaxUint256;
+        await weth.connect(owner).approve(policyMakerAddress, unlimitedAmount);
+        await weth.connect(addr1).approve(policyMakerAddress, unlimitedAmount);
+        await weth.connect(addr2).approve(policyMakerAddress, unlimitedAmount);
+
+        // check owner's WETH balance
+        const ownerBalance = await weth.balanceOf(await addr1.getAddress());
+        console.log("weth owner balance. ready to go.", ethers.formatEther(ownerBalance));
+
+        // addr2 paying initial premium, premium and custom premium for future test set up. This is temporary.
+        await policyMaker.connect(addr2).payInitialPremium(policyId);
+        const premiumAmount = ethers.parseEther("60")
+        console.log(ethers.formatEther(premiumFee));
+        await policyMaker.connect(addr2).payPremium(policyId, premiumAmount);
+        const potentialCoverage = await policyMaker.calculatePotentialCoverage(policyId, addr2.address, premiumAmount);
+        console.log(ethers.formatEther(potentialCoverage));
+        await policyMaker.connect(addr2).payCustomPremium(policyId, 50, premiumAmount);
+
     });
     describe.skip("Aave Pool Integration", function () {
         it.skip("Should fail when we cannot afford the premium rate", async function () {
@@ -150,5 +156,11 @@ describe("PolicyMaker", function () {
             console.log("aweth balance after: ", ethers.formatEther(aWethBalanceAfter));
             expect(aWethBalanceAfter).to.be.greaterThan(aWethBalanceBefore);
         });
+        it.skip("Should withdraw the correct amount of rewards to each subscriber", async function () {
+            const amountToWithdraw = ethers.parseEther("10");
+            await policyMaker.connect(owner).withdrawFromAavePool(policyId, wethAddress, amountToWithdraw);
+            const rewards = await policyMaker.rewards(policyId, addr1.address);
+            console.log(ethers.formatEther(rewards));
+        })
     });
 });
