@@ -161,41 +161,30 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     }
 
     function deactivatePolicy(uint32 _policyId) public onlyOwner {
+        require(policies[_policyId].isActive, "Policy is already inactive");
         policies[_policyId].isActive = false;
         emit PolicyDeactivated(_policyId);
     }
 
     // Payments section
-    function payInitialPremium(uint32 _policyId) public isPolicyActive(policyId) {
+    function payInitialPremium(uint32 _policyId) public isPolicyActive(_policyId) {
         require(policyOwners[_policyId][msg.sender] == false, "Already a claimant of this policy");
         require(weth.balanceOf(msg.sender) > policies[_policyId].initialPremiumFee, "Insufficient funds!");
         // Transfer WETH from the user to the contract
         require(weth.transferFrom(msg.sender, address(this), policies[_policyId].initialPremiumFee), "WETH transfer failed");
 
         // Store premiums paid for the account
-        premiumsPaid[_policyId][msg.sender] += policies[_policyId].initialPremiumFee;
-        policyOwners[_policyId][msg.sender] = true;
-        policyOwnerAddresses[_policyId].push(msg.sender);
-        lastPremiumPaidTime[_policyId][msg.sender] = block.timestamp;
 
-        // Calculate coverage and investment amount to add them to the fund
-        coverageFundBalance[_policyId] +=
-            (policies[_policyId].initialPremiumFee * policies[_policyId].coverageFundPercentage) /
-            100;
-        investmentFundBalance[_policyId] +=
-            (policies[_policyId].initialPremiumFee * policies[_policyId].investmentFundPercentage) /
-            100;
-        coverageFunded[_policyId][msg.sender] += (policies[_policyId].initialPremiumFee * policies[_policyId].coverageFundPercentage) / 100;
-        investmentFunded[_policyId][msg.sender] += (policies[_policyId].initialPremiumFee * policies[_policyId].investmentFundPercentage) / 100;
+        policyOwners[_policyId][msg.sender] = true;
+        updatePolicyPayments(_policyId, policies[_policyId].initialPremiumFee);
         emit PremiumPaid(_policyId, msg.sender, policies[_policyId].initialPremiumFee, true);
     }
 
     function payPremium(uint32 _policyId, uint256 amount) public payable isPolicyOwner(_policyId) isPolicyActive(_policyId) {
         require(calculateTotalCoverage(_policyId, msg.sender) < policies[_policyId].coverageAmount, "Full coverage achieved, use payCustomPremium");
         require(amount >= calculatePremium(_policyId, msg.sender), "Amount needs to be higher than the calculated premium!");
-
-        // Transfer WETH from the user to the contract
         require(weth.transferFrom(msg.sender, address(this), amount), "WETH transfer failed");
+
         uint256 currentTotalCoverage = calculateTotalCoverage(_policyId, msg.sender);
         uint256 maxCoverage = policies[_policyId].coverageAmount;
         uint256 remainingCoverageNeeded = (maxCoverage > currentTotalCoverage) ? (maxCoverage - currentTotalCoverage) : 0;
@@ -246,6 +235,21 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         emit PremiumPaid(_policyId, msg.sender, amount, false);
     }
 
+    function updatePolicyPayments(uint32 _policyId, uint256 amount) internal {
+        premiumsPaid[_policyId][msg.sender] += amount;
+        policyOwners[_policyId][msg.sender] = true;
+        policyOwnerAddresses[_policyId].push(msg.sender);
+        lastPremiumPaidTime[_policyId][msg.sender] = block.timestamp;
+
+        uint256 coverageFundAmount = (amount * policies[_policyId].coverageFundPercentage) / 100;
+        uint256 investmentFundAmount = (amount * policies[_policyId].investmentFundPercentage) / 100;
+
+        coverageFundBalance[_policyId] += coverageFundAmount;
+        investmentFundBalance[_policyId] += investmentFundAmount;
+        coverageFunded[_policyId][msg.sender] += coverageFundAmount;
+        investmentFunded[_policyId][msg.sender] += investmentFundAmount;
+    }
+
     // Helper function to calculate how much of the premium should go to the coverage fund
     function calculatePremiumForCoverageFund(uint32 _policyId, uint256 premium, uint256 remainingCoverageNeeded) public view returns (uint256) {
         uint256 coverageAmount = policies[_policyId].coverageAmount;
@@ -274,7 +278,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     }
 
     function calculatePremiumAllocation(uint32 _policyId, uint256 _premiumAmount) public view returns (uint256, uint256) {
-        Policy storage policy = policies[_policyId];
+        PolicyCalculations.Policy storage policy = policies[_policyId];
         uint256 premiumForCoverageFund = (_premiumAmount * policies[_policyId].coverageFundPercentage) / 100;
         uint256 premiumForInvestmentFund = (_premiumAmount * policies[_policyId].investmentFundPercentage) / 100;
         return (premiumForCoverageFund, premiumForInvestmentFund);
@@ -327,15 +331,18 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
             _policyHolder
         );
 
-        uint256 maxAllowedCoverage = policies[_policyId].coverageAmount * 2;
+        PolicyCalculations.Policy storage policy = policies[_policyId];
+
+
+        uint256 maxAllowedCoverage = policy.coverageAmount * 2;
         if (currentTotalCoverage >= maxAllowedCoverage) {
             return maxAllowedCoverage;
         }
 
-        uint256 additionalCoverage = calculateAdditionalCoverage(
-            _policyId,
+        uint256 additionalCoverage = policy.calculateAdditionalCoverage(
             _policyHolder,
-            (_amount * policies[_policyId].coverageFundPercentage) / 100
+            (_amount * policy.coverageFundPercentage) / 100,
+            lastPremiumPaidTime[_policyId][_policyHolder]
         );
 
         uint256 potentialCoverage = currentTotalCoverage + additionalCoverage;
@@ -353,16 +360,18 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         address _policyHolder
     ) public view returns (uint256) {
         require(policies[_policyId].isActive, "Policy is not active");
-        uint256 initialCoverage = calculateInitialCoverage(_policyId);
+
+        PolicyCalculations.Policy storage policy = policies[_policyId];
+        uint256 initialCoverage = policy.calculateInitialCoverage();
         if (coverageFunded[_policyId][_policyHolder] == (policies[_policyId].initialPremiumFee * policies[_policyId].coverageFundPercentage) / 100)
         {
             return initialCoverage;
         }
 
-        uint256 additionalCoverage = calculateAdditionalCoverage(
-            _policyId,
+        uint256 additionalCoverage = policy.calculateAdditionalCoverage(
             _policyHolder,
-            coverageFunded[_policyId][_policyHolder] - ((policies[_policyId].initialPremiumFee * policies[_policyId].coverageFundPercentage) / 100)
+            coverageFunded[_policyId][_policyHolder] - ((policies[_policyId].initialPremiumFee * policies[_policyId].coverageFundPercentage) / 100),
+            lastPremiumPaidTime[_policyId][_policyHolder]
         );
 
         uint256 totalCoverage = initialCoverage + additionalCoverage;

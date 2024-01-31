@@ -27,7 +27,8 @@ library PolicyCalculations {
     function calculateAdditionalCoverage(
         Policy memory _policy,
         address _policyHolder,
-        uint256 _amount
+        uint256 _amount,
+        uint256 _lastPremiumPaidTime
     ) internal view returns (uint256) {
         // Ensure the amount is greater than the initial premium fee
         if (_amount <= _policy.initialPremiumFee) {
@@ -35,7 +36,7 @@ library PolicyCalculations {
         }
 
         // Apply the dynamic coverage factor to the additional premium
-        uint256 additionalCoverage = _amount * calculateDynamicCoverageFactor(_policy, _policyHolder, _amount);
+        uint256 additionalCoverage = _amount * calculateDynamicCoverageFactor(_policy, _policyHolder, _amount, _lastPremiumPaidTime);
 
         return additionalCoverage;
     }
@@ -92,7 +93,7 @@ library PolicyCalculations {
     function calculatePremiumSizeFactor(Policy memory _policy, uint256 _inputPremium) internal view returns (uint256) {
         uint256 coverageAmount = _policy.coverageAmount;
 
-        if (inputPremium > coverageAmount || _inputPremium == 0) {
+        if (_inputPremium > coverageAmount || _inputPremium == 0) {
             return 0;
         }
         uint256 ratio = (_inputPremium * 100) / coverageAmount;
