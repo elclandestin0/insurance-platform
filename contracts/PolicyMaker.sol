@@ -473,15 +473,14 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         return rewardsData;
     }
 
-
     function withdrawFromAavePool(uint32 policyId, address asset, uint256 amount) external onlyPolicyCreator(policyId) {
         require(amount > 0, "Withdrawal amount must be greater than zero");
         require(calculateTotalAccrued(policyId) >= amount, "Can't withdraw that much!");
         require(policies[policyId].isActive, "Policy is not active");
         require(aWeth.transferFrom(msg.sender, address(this), amount), "aWETH transfer failed");
-        
+
         lendingPool.withdraw(asset, amount, address(this));
-        
+
         // Calculate the proportional rewards for each policy owner
         uint256 totalInvestmentFund = investmentFundBalance[policyId] + totalSupplied[policyId];
         if (totalInvestmentFund > 0) {
@@ -497,5 +496,14 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         }
     }
 
+    function withdrawReward(uint32 policyId, uint256 amount) external isPolicyOwner(policyId) {
+        require(rewards[policyId][msg.sender] >= amount, "Not enough rewards balance");
+        weth.approve(msg.sender, amount);
+        weth.transferFrom(address(this), msg.sender, amount);
+        uint256 _rewards = rewards[policyId][msg.sender];
+        rewards[policyId][msg.sender] -= amount;
+        // Transfer the reward to the policy owner
+        // This could be an ERC20 transfer or another method depending on how your contract is set up
+    }
 
 }

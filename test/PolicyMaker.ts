@@ -13,7 +13,7 @@ describe("PolicyMaker", function () {
     let aWeth: AToken;
     let owner: Signer, addr1: Signer, addr2: Signer;
     let policyId: any;
-    const policyMakerAddress = "0x725314746e727f586E9FCA65AeD5dBe45aA71B99";
+    const policyMakerAddress = "0x645D817611E0CDaF9cD43332c4E369B9E333471d";
     const wethAddress = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
     const aWethAddress = "0x4d5F47FA6A74757f35C14fD3a6Ef8E3C9BC514E8";
     const poolAddress = "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2";
@@ -152,8 +152,15 @@ describe("PolicyMaker", function () {
             const amountToWithdraw = ethers.parseEther("0.3");
             aWeth.approve(policyMakerAddress, amountToWithdraw);
             await policyMaker.connect(owner).withdrawFromAavePool(policyId, wethAddress, amountToWithdraw);
+            console.log("Getting rewards");
             const rewards = await policyMaker.rewards(policyId, addr1.address);
-            console.log(ethers.formatEther(rewards));
+            console.log("about to withdraw rewards");
+            const wethBalanceBefore = await weth.balanceOf(addr1.address);
+            console.log("weth balance before: ", ethers.formatEther(wethBalanceBefore));
+            await policyMaker.connect(addr1).withdrawReward(policyId, rewards);
+            const wethBalanceAfter = await weth.balanceOf(addr1.address);
+            console.log("weth balance after: ", ethers.formatEther(wethBalanceAfter));
+            expect(wethBalanceAfter).to.be.greaterThan(wethBalanceBefore);
         })
     });
 });
