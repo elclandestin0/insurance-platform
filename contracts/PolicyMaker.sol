@@ -476,13 +476,12 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
 
     function withdrawFromAavePool(uint32 policyId, address asset, uint256 amount) external onlyPolicyCreator(policyId) {
         require(amount > 0, "Withdrawal amount must be greater than zero");
-        require(calculateTotalAccrued(policyId) >= amount, "Insufficient funds in investment fund");
+        require(calculateTotalAccrued(policyId) >= amount, "Can't withdraw that much!");
         require(policies[policyId].isActive, "Policy is not active");
-
-        // Check if withdraw was successful
-        uint256 withdrawnAmount = lendingPool.withdraw(asset, amount, address(this));
-        require(withdrawnAmount == amount, "Withdrawal from Aave pool failed or partially completed");
-
+        require(aWeth.transferFrom(msg.sender, address(this), amount), "aWETH transfer failed");
+        
+        lendingPool.withdraw(asset, amount, address(this));
+        
         // Calculate the proportional rewards for each policy owner
         uint256 totalInvestmentFund = investmentFundBalance[policyId] + totalSupplied[policyId];
         if (totalInvestmentFund > 0) {

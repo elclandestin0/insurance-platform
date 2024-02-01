@@ -13,7 +13,7 @@ describe("PolicyMaker", function () {
     let aWeth: AToken;
     let owner: Signer, addr1: Signer, addr2: Signer;
     let policyId: any;
-    const policyMakerAddress = "0xD28F3246f047Efd4059B24FA1fa587eD9fa3e77F";
+    const policyMakerAddress = "0x725314746e727f586E9FCA65AeD5dBe45aA71B99";
     const wethAddress = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
     const aWethAddress = "0x4d5F47FA6A74757f35C14fD3a6Ef8E3C9BC514E8";
     const poolAddress = "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2";
@@ -65,15 +65,13 @@ describe("PolicyMaker", function () {
 
         // addr2 paying initial premium, premium and custom premium for future test set up. This is temporary.
         await policyMaker.connect(addr2).payInitialPremium(policyId);
-        const premiumAmount = ethers.parseEther("60")
-        console.log(ethers.formatEther(premiumFee));
+        const premiumAmount = ethers.parseEther("60");
         await policyMaker.connect(addr2).payPremium(policyId, premiumAmount);
         const potentialCoverage = await policyMaker.calculatePotentialCoverage(policyId, addr2.address, premiumAmount);
         console.log(ethers.formatEther(potentialCoverage));
         await policyMaker.connect(addr2).payCustomPremium(policyId, 50, premiumAmount);
-
     });
-    describe.skip("Aave Pool Integration", function () {
+    describe("Aave Pool Integration", function () {
         it.skip("Should fail when we cannot afford the premium rate", async function () {
             const initPremiumFee = ethers.parseEther("0.5");
             await expect(policyMaker.payInitialPremium(policyId)).to.be.revertedWith("Can't afford the rate!");
@@ -147,8 +145,12 @@ describe("PolicyMaker", function () {
             console.log("aweth balance after: ", ethers.formatEther(aWethBalanceAfter));
             expect(aWethBalanceAfter).to.be.greaterThan(aWethBalanceBefore);
         });
-        it.skip("Should withdraw the correct amount of rewards to each subscriber", async function () {
-            const amountToWithdraw = ethers.parseEther("10");
+        it.only("Should withdraw the correct amount of rewards to each subscriber", async function () {
+            const oneYearInSeconds = 365 * 60 * 60 * 24;
+            await ethers.provider.send("evm_increaseTime", [oneYearInSeconds]);
+            await ethers.provider.send("evm_mine");
+            const amountToWithdraw = ethers.parseEther("0.3");
+            aWeth.approve(policyMakerAddress, amountToWithdraw);
             await policyMaker.connect(owner).withdrawFromAavePool(policyId, wethAddress, amountToWithdraw);
             const rewards = await policyMaker.rewards(policyId, addr1.address);
             console.log(ethers.formatEther(rewards));
