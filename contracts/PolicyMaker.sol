@@ -390,7 +390,7 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
     function handlePayout(
         uint32 policyId,
         uint256 claimAmount
-    ) public nonReentrant {
+    ) public nonReentrant isPolicyOwner(policyId) {
         require(policies[policyId].isActive, "Policy is not active");
         require(policyOwners[policyId][msg.sender], "Not a policy owner");
         require(
@@ -399,19 +399,22 @@ contract PolicyMaker is Ownable, ReentrancyGuard {
         );
         require(
             claimAmount <= calculateTotalCoverage(policyId, msg.sender),
-            "Insufficient coverage fund"
+            "Claim # bigger than coverage"
         );
 
         uint256 payoutAmount = claimAmount >
         calculateTotalCoverage(policyId, msg.sender)
             ? calculateTotalCoverage(policyId, msg.sender)
             : claimAmount;
+        
         // Update the coverage fund balance
         coverageFundBalance[policyId] -= payoutAmount;
         amountClaimed[policyId][msg.sender] += payoutAmount;
-
+        
+        // approve balance
+        weth.approve(address(msg.sender), claimAmount);
         // Transfer the payout amount to the policy holder
-        payable(msg.sender).transfer(payoutAmount);
+        weth.transferFrom(address(this), msg.sender, claimAmount);
     }
 
     function setPayoutContract(address _payoutContract) external onlyOwner {
